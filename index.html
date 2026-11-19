@@ -154,8 +154,11 @@ const SVC_CUSTOM = '00400001-b5a3-f393-e0a9-e50e24dcca9e';
 const CH_WRITE   = '00400002-b5a3-f393-e0a9-e50e24dcca9e';
 const CH_NOTIFY  = '00400003-b5a3-f393-e0a9-e50e24dcca9e';
 const CH_EXTRA   = '00400004-b5a3-f393-e0a9-e50e24dcca9e';
-const ADV_SERVICE = 0x726e;            // 电池广播里带的服务号
-const SVC_JBD = 0xff00, JBD_NOTIFY = 0xff01, JBD_WRITE = 0xff02;   // 嘉佰达标准服务，作为备用
+const short = n => '0000' + n.toString(16).padStart(4, '0') + '-0000-1000-8000-00805f9b34fb';
+const ADV_SERVICE = short(0x726e);     // 电池广播里带的服务号
+const SVC_JBD = short(0xff00), JBD_NOTIFY = short(0xff01), JBD_WRITE = short(0xff02);   // 嘉佰达标准服务，作为备用
+const SVC_INFO = short(0x180a);
+const errText = e => (e && (e.message || e.name)) || String(e);
 
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -428,7 +431,7 @@ function request(cmd) {
     }, 1500);
     pending = { cmd, resolve, timer };
     writeBytes(jbdRead(cmd)).catch(e => {
-      log('发送失败：' + e.message);
+      log('发送失败：' + errText(e));
       clearTimeout(timer); pending = null; misses++; resolve(false);
     });
   });
@@ -453,7 +456,7 @@ async function connect() {
   stopDemo();
   banner('');
   try {
-    const optionalServices = [SVC_CUSTOM, SVC_JBD, 0x180a];
+    const optionalServices = [SVC_CUSTOM, SVC_JBD, SVC_INFO];
     const opts = $('chkAll').checked
       ? { acceptAllDevices: true, optionalServices }
       : { filters: [{ services: [ADV_SERVICE] }], optionalServices };
@@ -465,7 +468,11 @@ async function connect() {
     const server = await device.gatt.connect();
     let svc, wId = CH_WRITE, nId = CH_NOTIFY, custom = true;
     try { svc = await server.getPrimaryService(SVC_CUSTOM); log('找到定制串口服务 00400001'); }
-    catch (e) { svc = await server.getPrimaryService(SVC_JBD); wId = JBD_WRITE; nId = JBD_NOTIFY; custom = false; log('找到嘉佰达标准服务 FF00'); }
+    catch (e) {
+      try { svc = await server.getPrimaryService(SVC_JBD); }
+      catch (e2) { throw new Error('这个设备上没有电池保护板的服务，可能选错了设备。'); }
+      wId = JBD_WRITE; nId = JBD_NOTIFY; custom = false; log('找到嘉佰达标准服务 FF00');
+    }
     chNotify = await svc.getCharacteristic(nId);
     chWrite = await svc.getCharacteristic(wId);
     chNotify.addEventListener('characteristicvaluechanged', e => {
@@ -478,7 +485,7 @@ async function connect() {
       try {
         const v = await (await svc.getCharacteristic(CH_EXTRA)).readValue();
         log('00400004 当前值：' + (hex(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)) || '(空)'));
-      } catch (e) { log('读 00400004 失败：' + e.message); }
+      } catch (e) { log('读 00400004 失败：' + errText(e)); }
     }
     connected = true; gotFrame = false; misses = 0; rx = [];
     setStatus('已连接', true);
@@ -486,8 +493,12 @@ async function connect() {
     await sleep(2000);
     pollLoop();
   } catch (e) {
-    log('连接出错：' + e.message);
-    if (e.name !== 'NotFoundError') banner('连接失败：' + e.message);
+    const msg = errText(e);
+    log('连接出错：' + msg);
+    const cancelled = (e && e.name === 'NotFoundError') || /cancel|取消/i.test(msg);
+    banner(cancelled
+      ? '没有选中设备。默认只列出这一类电池，要在电池旁边才搜得到；想看附近所有蓝牙设备，请勾选上面的选项再点一次。'
+      : '连接失败：' + msg);
     if (device && device.gatt && device.gatt.connected) device.gatt.disconnect();
     connected = false; setStatus('未连接');
   }
@@ -512,7 +523,7 @@ $('btnSend').onclick = async () => {
   const bytes = parts.map(p => parseInt(p, 16));
   if (!bytes.length || bytes.some(b => !(b >= 0 && b <= 255))) { banner('指令格式不对，请输入用空格分开的十六进制字节。'); return; }
   if (bytes[0] === 0xDD && bytes[1] === 0x5A) { banner('这是写入参数的指令，已拦截。本页面只读取数据。'); return; }
-  try { rx = []; await writeBytes(Uint8Array.from(bytes)); } catch (e) { banner('发送失败：' + e.message); }
+  try { rx = []; await writeBytes(Uint8Array.from(bytes)); } catch (e) { banner('发送失败：' + errText(e)); }
 };
 
 // ---------- 演示模式：拼出嘉佰达格式的数据，走和真机一样的解析流程 ----------
