@@ -64,6 +64,12 @@ label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; col
 .cell.min b { color: var(--low); }
 .cell.max { background: var(--high-bg); border-color: var(--high); }
 .cell.max b { color: var(--high); }
+.cell.bal small::after { content: ' 均衡'; color: var(--accent); font-weight: 600; }
+.switch-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+.switch-row:first-of-type { border-top: 0; padding-top: 0; }
+.switch-row b { font-size: 16px; }
+.switch-row small { display: block; color: var(--muted); font-size: 12px; }
+.switch-row button { min-width: 108px; }
 canvas { width: 100%; height: 170px; display: block; }
 details summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 pre {
@@ -113,8 +119,23 @@ textarea { height: 120px; margin-top: 8px; display: none; }
   </section>
 
   <section class="card">
+    <h2>充放电开关</h2>
+    <div class="switch-row">
+      <div><b>充电</b><small id="chgState">连接后可用</small></div>
+      <button id="btnChg" disabled>--</button>
+    </div>
+    <div class="switch-row">
+      <div><b>放电</b><small id="dsgState">连接后可用</small></div>
+      <button id="btnDsg" disabled>--</button>
+    </div>
+    <div class="banner" id="swMsg"></div>
+    <p class="note">关闭放电后车子会断电，接在电池上的定位器也会没电。开关状态由保护板记住，要再点一次才会恢复。</p>
+  </section>
+
+  <section class="card">
     <h2>单体电压（每 4 节一组，对应一块电池）</h2>
     <div id="blocks"><p class="note">连接后显示。</p></div>
+    <p class="note" id="balInfo"></p>
     <p class="note">橙色是最低的一节，绿色是最高的一节。组的编号由保护板决定，断电后可能变化。</p>
   </section>
 
@@ -198,12 +219,30 @@ function setStatus(text, on) {
   $('status').classList.toggle('on', !!on);
   $('btnConnect').disabled = connected;
   $('btnDisconnect').disabled = !connected && !demoTimer;
+  $('swMsg').classList.remove('show');
+  renderSwitches();
+}
+function renderSwitches() {
+  const ready = state.fet !== undefined && (connected || !!demoTimer);
+  for (const [key, bit, name] of [['chg', 1, '充电'], ['dsg', 2, '放电']]) {
+    const on = !!(state.fet & bit);
+    $(key + 'State').textContent = ready ? (on ? '现在：开' : '现在：关') : '连接后可用';
+    const btn = $(key === 'chg' ? 'btnChg' : 'btnDsg');
+    btn.disabled = !ready;
+    btn.textContent = ready ? (on ? '关闭' + name : '打开' + name) : '--';
+  }
 }
 
 // ---------- 嘉佰达指令格式 ----------
 function jbdRead(cmd) {
   const chk = (0x10000 - cmd) & 0xffff;
   return Uint8Array.from([0xDD, 0xA5, cmd, 0x00, chk >> 8, chk & 0xff, 0x77]);
+}
+function jbdWrite(reg, data) {
+  let sum = reg + data.length;
+  for (const b of data) sum += b;
+  const chk = (0x10000 - sum) & 0xffff;
+  return Uint8Array.from([0xDD, 0x5A, reg, data.length, ...data, chk >> 8, chk & 0xff, 0x77]);
 }
 function jbdResponse(cmd, data) {            // 只给演示模式用：拼一帧回应
   let sum = data.length;
@@ -237,7 +276,7 @@ function handleFrame(f) {
   if (want !== got) { log('校验不对，丢弃这一帧'); return; }
   misses = 0;
   if (!gotFrame) { gotFrame = true; banner(''); }
-  if (pending && pending.cmd === cmd) { clearTimeout(pending.timer); const p = pending; pending = null; p.resolve(true); }
+  if (pending && pending.cmd === cmd) { clearTimeout(pending.timer); const p = pending; pending = null; p.resolve({ ok: true, status }); }
   if (status !== 0) { log('保护板返回错误状态 0x' + status.toString(16)); return; }
   if (cmd === 0x03) parseBasic(data);
   else if (cmd === 0x04) parseCells(data);
@@ -252,6 +291,7 @@ function parseBasic(d) {
   state.remainAh = dv.getUint16(4) / 100;
   state.nominalAh = dv.getUint16(6) / 100;
   state.cycles = dv.getUint16(8);
+  state.balance = ((dv.getUint16(14) << 16) | dv.getUint16(12)) >>> 0;   // 第 n 节正在均衡 = 第 n-1 位为 1
   state.protect = dv.getUint16(16);
   state.rsoc = d[19];
   state.fet = d[20];
@@ -290,6 +330,7 @@ function render() {
     $('fet').textContent = ((s.fet & 1) ? '开' : '关') + ' / ' + ((s.fet & 2) ? '开' : '关');
     const active = PROTECT.filter((_, i) => s.protect & (1 << i));
     $('protect').textContent = active.length ? '保护状态：' + active.join('、') : '';
+    renderSwitches();
   }
   if (st) {
     const d = $('diff');
@@ -314,13 +355,19 @@ function renderBlocks(cells, st) {
     const isLow = g === lowest && spread >= 0.02;
     const cellsHtml = g.part.map((v, k) => {
       const idx = g.start + k;
-      const cls = idx === st.lo ? ' min' : idx === st.hi ? ' max' : '';
+      const bal = idx < 32 && ((state.balance >>> idx) & 1) ? ' bal' : '';
+      const cls = (idx === st.lo ? ' min' : idx === st.hi ? ' max' : '') + bal;
       return '<div class="cell' + cls + '"><small>' + (idx + 1) + '</small><b>' + v.toFixed(3) + '</b></div>';
     }).join('');
     return '<div class="block"><div class="block-head' + (isLow ? ' lowest' : '') + '"><span>第 ' + (gi + 1) + ' 组' +
       (isLow ? '（整组最低）' : '') + '</span><span>合计 ' + g.sum.toFixed(3) + ' V</span></div><div class="cells">' +
       cellsHtml + '</div></div>';
   }).join('');
+  if (state.balance === undefined) { $('balInfo').textContent = ''; return; }
+  const balancing = cells.map((_, i) => i).filter(i => i < 32 && ((state.balance >>> i) & 1)).map(i => i + 1);
+  $('balInfo').textContent = balancing.length
+    ? '正在均衡（放掉多余的电）：第 ' + balancing.join('、') + ' 节'
+    : '均衡现在没有启动。一般要到快充满时才会启动。';
 }
 
 // ---------- 压差记录 ----------
@@ -423,19 +470,64 @@ async function writeBytes(u8) {
   if (p.write && chWrite.writeValueWithResponse) return chWrite.writeValueWithResponse(u8);
   return chWrite.writeValue(u8);
 }
-function request(cmd) {
+function transact(bytes, cmd) {              // 发一条指令，等同一指令号的回应
   return new Promise(resolve => {
     rx = [];
     const timer = setTimeout(() => {
-      if (pending && pending.cmd === cmd) { pending = null; misses++; resolve(false); }
+      if (pending && pending.cmd === cmd) { pending = null; resolve({ ok: false }); }
     }, 1500);
     pending = { cmd, resolve, timer };
-    writeBytes(jbdRead(cmd)).catch(e => {
+    writeBytes(bytes).catch(e => {
       log('发送失败：' + errText(e));
-      clearTimeout(timer); pending = null; misses++; resolve(false);
+      clearTimeout(timer); pending = null; resolve({ ok: false });
     });
   });
 }
+let chain = Promise.resolve();               // 所有指令排队，一条回应完再发下一条
+function serial(fn) {
+  const p = chain.then(fn);
+  chain = p.catch(() => {});
+  return p;
+}
+async function request(cmd) {
+  const r = await serial(() => transact(jbdRead(cmd), cmd));
+  if (!r.ok) misses++;
+  return r.ok;
+}
+
+// ---------- 充放电开关 ----------
+let demoFet = 3;
+async function setSwitch(which, turnOn) {
+  const s = state;
+  if (s.fet === undefined || !(connected || demoTimer)) return;
+  const name = which === 'chg' ? '充电' : '放电';
+  const say = msg => { $('swMsg').textContent = msg; $('swMsg').classList.toggle('show', !!msg); };
+  say('');
+  if (which === 'dsg' && !turnOn && s.current < -1) {
+    say('电池正在放电（' + s.current.toFixed(1) + ' A），车子可能正在用电。请先停车、关掉电门，再关闭放电。');
+    return;
+  }
+  const question = turnOn ? '确定打开' + name + '吗？'
+    : which === 'dsg' ? '确定关闭放电吗？\n车子会立刻断电，接在电池上的定位器也会没电。'
+    : '确定关闭充电吗？\n关闭后插上充电器也充不进电，要再打开才行。';
+  if (!confirm(question)) return;
+  // 另一个开关保持原样：只有保护板标了"软件锁定"时，才把它当前的关闭状态带上
+  const locked = !!(s.protect & 0x1000);
+  let chgOff = locked && !(s.fet & 1), dsgOff = locked && !(s.fet & 2);
+  if (which === 'chg') chgOff = !turnOn; else dsgOff = !turnOn;
+  const value = (chgOff ? 1 : 0) | (dsgOff ? 2 : 0);
+  let r;
+  if (demoTimer) { demoFet = 3 & ~value; demoTick(); r = { ok: true, status: 0 }; }
+  else r = await serial(() => transact(jbdWrite(0xE1, [0x00, value]), 0xE1));
+  if (!r.ok) say('保护板没有回应这条指令，开关状态没有变。');
+  else if (r.status !== 0) say('保护板拒绝了这条指令（状态 0x' + r.status.toString(16) + '），开关状态没有变。');
+  else {
+    say(name + '开关指令已被保护板接受，实际状态以上面"现在"后面显示的为准。');
+    if (!demoTimer) request(0x03);
+  }
+}
+$('btnChg').onclick = () => setSwitch('chg', !(state.fet & 1));
+$('btnDsg').onclick = () => setSwitch('dsg', !(state.fet & 2));
 async function pollLoop() {
   await request(0x05);
   while (connected) {
@@ -536,7 +628,7 @@ function demoTick() {
   }
   const total = Math.round(cells.reduce((a, b) => a + b, 0) / 10);
   const basic = [...u16(total), ...u16((-32 + 0x10000) & 0xffff), ...u16(3960), ...u16(6000), ...u16(0), ...u16(0x2f65),
-                 0, 0, 0, 0, ...u16(0), 0x24, 66, 3, 20, 2, ...u16(2731 + 150), ...u16(2731 + 130)];
+                 0, 0, 0, 0, ...u16(demoFet === 3 ? 0 : 0x1000), 0x24, 66, demoFet, 20, 2, ...u16(2731 + 150), ...u16(2731 + 130)];
   for (const frame of [jbdResponse(0x03, basic), jbdResponse(0x04, cells.flatMap(u16))]) {
     for (let i = 0; i < frame.length; i += 20) onBytes(frame.slice(i, i + 20));   // 模拟蓝牙每包 20 字节
   }
@@ -544,6 +636,7 @@ function demoTick() {
 function startDemo() {
   if (connected) disconnect();
   demoHist = [];
+  demoFet = 3;
   gotFrame = true;
   banner('正在显示演示数据，不是你电池的真实数据。');
   demoTick();
@@ -553,7 +646,7 @@ function startDemo() {
 function stopDemo() {
   if (!demoTimer) return;
   clearInterval(demoTimer); demoTimer = null;
-  banner(''); drawChart(history);
+  banner(''); drawChart(history); renderSwitches();
 }
 $('btnDemo').onclick = startDemo;
 
