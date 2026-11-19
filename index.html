@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>电池监控</title>
+<style>
+:root {
+  --bg: #f3f5f8; --card: #ffffff; --text: #1a2330; --muted: #6b7786;
+  --line: #e1e6ec; --accent: #1f6feb; --accent-text: #ffffff;
+  --low: #d9480f; --low-bg: #fff0e6; --high: #1a7f37; --high-bg: #e6f6ea;
+  --warn-bg: #fff8db; --warn-text: #7a5b00; --bad: #c92a2a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141a; --card: #19212b; --text: #e6ebf1; --muted: #94a1b2;
+    --line: #2a3542; --accent: #4c8dff; --accent-text: #0b1220;
+    --low: #ff9f6b; --low-bg: #3a2416; --high: #63d283; --high-bg: #16301e;
+    --warn-bg: #3a3212; --warn-text: #f2d97a; --bad: #ff8787;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+}
+main { max-width: 560px; margin: 0 auto; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+h1 { font-size: 20px; margin: 0; }
+h2 { font-size: 15px; margin: 0 0 10px; }
+.pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--line); color: var(--muted); white-space: nowrap; }
+.pill.on { background: var(--high-bg); color: var(--high); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+button {
+  font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
+  border-radius: 8px; padding: 9px 14px; min-height: 40px; cursor: pointer;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+button:disabled { opacity: .45; cursor: default; }
+label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-top: 10px; }
+.banner { display: none; background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 10px 12px; margin-top: 10px; font-size: 13px; }
+.banner.show { display: block; }
+.soc { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.soc b { font-size: 40px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.soc span { color: var(--muted); font-size: 13px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; }
+.stat small { display: block; color: var(--muted); font-size: 12px; }
+.stat b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.stat.big b { font-size: 22px; }
+.stat b.bad { color: var(--bad); }
+.note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+.block { border-top: 1px solid var(--line); padding: 8px 0; }
+.block:first-child { border-top: 0; padding-top: 0; }
+.block-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.block-head.lowest { color: var(--low); font-weight: 600; }
+.cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.cell { border: 1px solid var(--line); border-radius: 8px; padding: 5px 4px; text-align: center; }
+.cell small { display: block; color: var(--muted); font-size: 11px; }
+.cell b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.cell.min { background: var(--low-bg); border-color: var(--low); }
+.cell.min b { color: var(--low); }
+.cell.max { background: var(--high-bg); border-color: var(--high); }
+.cell.max b { color: var(--high); }
+canvas { width: 100%; height: 170px; display: block; }
+details summary { cursor: pointer; font-weight: 600; font-size: 15px; }
+pre {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 10px 0;
+  font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; max-height: 260px; overflow: auto;
+  white-space: pre-wrap; word-break: break-all;
+}
+input[type="text"], textarea {
+  font: 13px ui-monospace, Menlo, Consolas, monospace; width: 100%; padding: 9px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+}
+textarea { height: 120px; margin-top: 8px; display: none; }
+.send { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>电池监控</h1>
+    <span class="pill" id="status">未连接</span>
+  </header>
+
+  <section class="card">
+    <div class="row">
+      <button class="primary" id="btnConnect">连接电池</button>
+      <button id="btnDisconnect" disabled>断开</button>
+      <button id="btnDemo">演示数据</button>
+    </div>
+    <label class="check"><input type="checkbox" id="chkAll"> 列表里找不到电池时，勾选这里显示所有蓝牙设备</label>
+    <div class="banner" id="banner"></div>
+  </section>
+
+  <section class="card">
+    <div class="soc"><b id="soc">--</b><span id="socSub">剩余电量</span></div>
+    <div class="stats">
+      <div class="stat big"><small>压差</small><b id="diff">--</b></div>
+      <div class="stat big"><small>总电压</small><b id="totalV">--</b></div>
+      <div class="stat big"><small>电流</small><b id="current">--</b></div>
+      <div class="stat"><small>最高单体</small><b id="maxV">--</b></div>
+      <div class="stat"><small>最低单体</small><b id="minV">--</b></div>
+      <div class="stat"><small>平均单体</small><b id="avgV">--</b></div>
+      <div class="stat"><small>温度</small><b id="temps">--</b></div>
+      <div class="stat"><small>循环次数</small><b id="cycles">--</b></div>
+      <div class="stat"><small>充 / 放电开关</small><b id="fet">--</b></div>
+    </div>
+    <p class="note" id="protect"></p>
+  </section>
+
+  <section class="card">
+    <h2>单体电压（每 4 节一组，对应一块电池）</h2>
+    <div id="blocks"><p class="note">连接后显示。</p></div>
+    <p class="note">橙色是最低的一节，绿色是最高的一节。组的编号由保护板决定，断电后可能变化。</p>
+  </section>
+
+  <section class="card">
+    <h2>压差记录</h2>
+    <canvas id="chart"></canvas>
+    <p class="note" id="histInfo">每 10 秒记一次，保存在这台手机的浏览器里。</p>
+    <div class="row" style="margin-top:8px">
+      <button id="btnCsv">复制记录</button>
+      <button id="btnClear">清空记录</button>
+    </div>
+    <textarea id="csvBox" readonly></textarea>
+  </section>
+
+  <section class="card">
+    <details id="dbg">
+      <summary>调试日志</summary>
+      <pre id="log">（还没有日志）</pre>
+      <div class="row">
+        <button id="btnCopyLog">复制日志</button>
+      </div>
+      <textarea id="logBox" readonly></textarea>
+      <p class="note">手动发送十六进制指令（只用于排查协议，写入类指令会被拦截）：</p>
+      <div class="send">
+        <input type="text" id="hexIn" placeholder="例如 DD A5 03 00 FF FD 77" autocapitalize="characters" autocomplete="off">
+        <button id="btnSend">发送</button>
+      </div>
+    </details>
+  </section>
+</main>
+
+<script>
+'use strict';
+
+// ---------- 蓝牙服务（来自对这块电池的扫描结果） ----------
+const SVC_CUSTOM = '00400001-b5a3-f393-e0a9-e50e24dcca9e';
+const CH_WRITE   = '00400002-b5a3-f393-e0a9-e50e24dcca9e';
+const CH_NOTIFY  = '00400003-b5a3-f393-e0a9-e50e24dcca9e';
+const CH_EXTRA   = '00400004-b5a3-f393-e0a9-e50e24dcca9e';
+const ADV_SERVICE = 0x726e;            // 电池广播里带的服务号
+const SVC_JBD = 0xff00, JBD_NOTIFY = 0xff01, JBD_WRITE = 0xff02;   // 嘉佰达标准服务，作为备用
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const hex = bytes => Array.from(bytes, b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+
+let device = null, chWrite = null, chNotify = null;
+let connected = false, demoTimer = null;
+let rx = [], pending = null, misses = 0, gotFrame = false;
+const state = { cells: [] };
+
+// ---------- 日志 ----------
+const logHead = [], logTail = [];
+function log(msg) {
+  const t = new Date().toTimeString().slice(0, 8);
+  const line = t + ' ' + msg;
+  if (logHead.length < 120) logHead.push(line);
+  else { logTail.push(line); if (logTail.length > 200) logTail.shift(); }
+  if ($('dbg').open) renderLog();
+}
+function logText() {
+  return logHead.concat(logTail.length ? ['……（中间省略）……'] : [], logTail).join('\n');
+}
+function renderLog() {
+  const el = $('log');
+  el.textContent = logText() || '（还没有日志）';
+  el.scrollTop = el.scrollHeight;
+}
+$('dbg').addEventListener('toggle', renderLog);
+
+function banner(msg) {
+  const el = $('banner');
+  el.textContent = msg || '';
+  el.classList.toggle('show', !!msg);
+}
+function setStatus(text, on) {
+  $('status').textContent = text;
+  $('status').classList.toggle('on', !!on);
+  $('btnConnect').disabled = connected;
+  $('btnDisconnect').disabled = !connected && !demoTimer;
+}
+
+// ---------- 嘉佰达指令格式 ----------
+function jbdRead(cmd) {
+  const chk = (0x10000 - cmd) & 0xffff;
+  return Uint8Array.from([0xDD, 0xA5, cmd, 0x00, chk >> 8, chk & 0xff, 0x77]);
+}
+function jbdResponse(cmd, data) {            // 只给演示模式用：拼一帧回应
+  let sum = data.length;
+  for (const b of data) sum += b;
+  const chk = (0x10000 - sum) & 0xffff;
+  return Uint8Array.from([0xDD, cmd, 0x00, data.length, ...data, chk >> 8, chk & 0xff, 0x77]);
+}
+
+function onBytes(u8) {
+  log('收 ' + hex(u8));
+  for (const b of u8) rx.push(b);
+  parseRx();
+}
+function parseRx() {
+  while (rx.length) {
+    const s = rx.indexOf(0xDD);
+    if (s < 0) { rx = []; return; }
+    if (s > 0) rx.splice(0, s);
+    if (rx.length < 4) return;
+    const total = rx[3] + 7;
+    if (rx.length < total) return;
+    if (rx[total - 1] !== 0x77) { rx.shift(); continue; }
+    handleFrame(rx.splice(0, total));
+  }
+}
+function handleFrame(f) {
+  const cmd = f[1], status = f[2], len = f[3], data = f.slice(4, 4 + len);
+  let sum = status + len;
+  for (const b of data) sum += b;
+  const want = (0x10000 - sum) & 0xffff, got = (f[4 + len] << 8) | f[5 + len];
+  if (want !== got) { log('校验不对，丢弃这一帧'); return; }
+  misses = 0;
+  if (!gotFrame) { gotFrame = true; banner(''); }
+  if (pending && pending.cmd === cmd) { clearTimeout(pending.timer); const p = pending; pending = null; p.resolve(true); }
+  if (status !== 0) { log('保护板返回错误状态 0x' + status.toString(16)); return; }
+  if (cmd === 0x03) parseBasic(data);
+  else if (cmd === 0x04) parseCells(data);
+  else if (cmd === 0x05) log('硬件型号：' + String.fromCharCode(...data));
+  render();
+}
+function parseBasic(d) {
+  if (d.length < 23) { log('基本信息长度不够：' + d.length); return; }
+  const dv = new DataView(Uint8Array.from(d).buffer);
+  state.totalV = dv.getUint16(0) / 100;
+  state.current = dv.getInt16(2) / 100;
+  state.remainAh = dv.getUint16(4) / 100;
+  state.nominalAh = dv.getUint16(6) / 100;
+  state.cycles = dv.getUint16(8);
+  state.protect = dv.getUint16(16);
+  state.rsoc = d[19];
+  state.fet = d[20];
+  state.temps = [];
+  for (let i = 0; i < d[22] && 24 + 2 * i < d.length; i++) {
+    state.temps.push((dv.getUint16(23 + 2 * i) - 2731) / 10);
+  }
+}
+function parseCells(d) {
+  const dv = new DataView(Uint8Array.from(d).buffer);
+  const cells = [];
+  for (let i = 0; i + 1 < d.length; i += 2) cells.push(dv.getUint16(i) / 1000);
+  state.cells = cells;
+  recordSample();
+}
+
+// ---------- 显示 ----------
+const PROTECT = ['单体过压', '单体欠压', '整组过压', '整组欠压', '充电过温', '充电低温', '放电过温', '放电低温',
+                 '充电过流', '放电过流', '短路保护', '采样芯片错误', '软件锁定开关'];
+function cellStats(cells) {
+  if (!cells.length) return null;
+  let hi = 0, lo = 0, sum = 0;
+  cells.forEach((v, i) => { sum += v; if (v > cells[hi]) hi = i; if (v < cells[lo]) lo = i; });
+  return { hi, lo, max: cells[hi], min: cells[lo], avg: sum / cells.length, diff: cells[hi] - cells[lo] };
+}
+function render() {
+  const s = state, st = cellStats(s.cells);
+  if (s.totalV !== undefined) {
+    const pct = s.nominalAh > 0 ? Math.min(100, s.remainAh / s.nominalAh * 100) : s.rsoc;
+    $('soc').textContent = pct.toFixed(1) + '%';
+    $('socSub').textContent = '剩余 ' + s.remainAh.toFixed(1) + ' / ' + s.nominalAh.toFixed(1) + ' Ah';
+    $('totalV').textContent = s.totalV.toFixed(1) + ' V';
+    $('current').textContent = s.current.toFixed(2) + ' A';
+    $('cycles').textContent = s.cycles;
+    $('temps').textContent = s.temps.length ? s.temps.map(t => t.toFixed(0) + '°').join(' / ') : '--';
+    $('fet').textContent = ((s.fet & 1) ? '开' : '关') + ' / ' + ((s.fet & 2) ? '开' : '关');
+    const active = PROTECT.filter((_, i) => s.protect & (1 << i));
+    $('protect').textContent = active.length ? '保护状态：' + active.join('、') : '';
+  }
+  if (st) {
+    const d = $('diff');
+    d.textContent = st.diff.toFixed(3) + ' V';
+    d.classList.toggle('bad', st.diff > 0.03 && Math.abs(s.current || 0) < 1);
+    $('maxV').textContent = st.max.toFixed(3) + ' V';
+    $('minV').textContent = st.min.toFixed(3) + ' V';
+    $('avgV').textContent = st.avg.toFixed(3) + ' V';
+    renderBlocks(s.cells, st);
+  }
+}
+function renderBlocks(cells, st) {
+  const groups = [];
+  for (let i = 0; i < cells.length; i += 4) {
+    const part = cells.slice(i, i + 4);
+    groups.push({ start: i, part, sum: part.reduce((a, b) => a + b, 0) });
+  }
+  const full = groups.filter(g => g.part.length === 4);
+  const lowest = full.length > 1 ? full.reduce((a, b) => (b.sum < a.sum ? b : a)) : null;
+  const spread = full.length > 1 ? Math.max(...full.map(g => g.sum)) - lowest.sum : 0;
+  $('blocks').innerHTML = groups.map((g, gi) => {
+    const isLow = g === lowest && spread >= 0.02;
+    const cellsHtml = g.part.map((v, k) => {
+      const idx = g.start + k;
+      const cls = idx === st.lo ? ' min' : idx === st.hi ? ' max' : '';
+      return '<div class="cell' + cls + '"><small>' + (idx + 1) + '</small><b>' + v.toFixed(3) + '</b></div>';
+    }).join('');
+    return '<div class="block"><div class="block-head' + (isLow ? ' lowest' : '') + '"><span>第 ' + (gi + 1) + ' 组' +
+      (isLow ? '（整组最低）' : '') + '</span><span>合计 ' + g.sum.toFixed(3) + ' V</span></div><div class="cells">' +
+      cellsHtml + '</div></div>';
+  }).join('');
+}
+
+// ---------- 压差记录 ----------
+const HIST_KEY = 'bms-history-v1';
+let history = [], lastSample = 0;
+try { history = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch (e) { history = []; }
+function recordSample() {
+  const st = cellStats(state.cells);
+  if (!st || demoTimer) { if (demoTimer) drawChart(demoSamples()); return; }
+  const now = Date.now();
+  if (now - lastSample < 10000) return;
+  lastSample = now;
+  history.push({
+    t: now, d: Math.round(st.diff * 1000), lo: st.min, hi: st.max,
+    soc: state.nominalAh > 0 ? +(state.remainAh / state.nominalAh * 100).toFixed(1) : state.rsoc,
+    i: state.current, v: state.totalV
+  });
+  if (history.length > 3000) history = history.slice(-3000);
+  try { localStorage.setItem(HIST_KEY, JSON.stringify(history)); } catch (e) { /* 存不下就只留在内存里 */ }
+  drawChart(history);
+}
+let demoHist = [];
+function demoSamples() {
+  const st = cellStats(state.cells);
+  demoHist.push({ t: Date.now(), d: Math.round(st.diff * 1000) });
+  if (demoHist.length > 120) demoHist.shift();
+  return demoHist;
+}
+function drawChart(samples) {
+  const c = $('chart'), dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  if (!w) return;
+  c.width = w * dpr; c.height = h * dpr;
+  const g = c.getContext('2d');
+  g.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement);
+  const cLine = css.getPropertyValue('--line'), cMuted = css.getPropertyValue('--muted');
+  const cAccent = css.getPropertyValue('--accent'), cLow = css.getPropertyValue('--low');
+  const L = 34, R = 8, T = 10, B = 22;
+  const data = samples.slice(-300);
+  const top = Math.max(40, ...data.map(p => p.d)) * 1.15;
+  const y = v => T + (h - T - B) * (1 - v / top);
+  const x = i => L + (w - L - R) * (data.length > 1 ? i / (data.length - 1) : 0.5);
+  g.font = '11px sans-serif'; g.textBaseline = 'middle';
+  for (const v of [0, Math.round(top / 2), Math.round(top)]) {
+    g.strokeStyle = cLine; g.lineWidth = 1; g.setLineDash([]);
+    g.beginPath(); g.moveTo(L, y(v)); g.lineTo(w - R, y(v)); g.stroke();
+    g.fillStyle = cMuted; g.textAlign = 'right'; g.fillText(v, L - 5, y(v));
+  }
+  g.strokeStyle = cLow; g.setLineDash([4, 4]);
+  g.beginPath(); g.moveTo(L, y(30)); g.lineTo(w - R, y(30)); g.stroke();
+  g.fillStyle = cLow; g.textAlign = 'right'; g.fillText('30mV', w - R, y(30) - 8);
+  g.setLineDash([]);
+  if (!data.length) {
+    g.fillStyle = cMuted; g.textAlign = 'center'; g.fillText('还没有记录', w / 2, h / 2);
+    $('histInfo').textContent = '每 10 秒记一次，保存在这台手机的浏览器里。';
+    return;
+  }
+  g.strokeStyle = cAccent; g.lineWidth = 2; g.lineJoin = 'round';
+  g.beginPath();
+  data.forEach((p, i) => (i ? g.lineTo(x(i), y(p.d)) : g.moveTo(x(i), y(p.d))));
+  g.stroke();
+  if (data.length === 1) { g.fillStyle = cAccent; g.beginPath(); g.arc(x(0), y(data[0].d), 3, 0, 7); g.fill(); }
+  const fmt = t => new Date(t).toTimeString().slice(0, 5);
+  g.fillStyle = cMuted; g.textBaseline = 'alphabetic';
+  g.textAlign = 'left'; g.fillText(fmt(data[0].t), L, h - 5);
+  g.textAlign = 'right'; g.fillText(fmt(data[data.length - 1].t), w - R, h - 5);
+  $('histInfo').textContent = '单位 mV，共 ' + samples.length + ' 条记录，图上显示最近 ' + data.length + ' 条。';
+}
+function csvText() {
+  const rows = ['时间,压差mV,最低V,最高V,电量%,电流A,总电压V'];
+  for (const p of history) {
+    const d = new Date(p.t);
+    const ts = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') +
+      ' ' + d.toTimeString().slice(0, 8);
+    rows.push([ts, p.d, p.lo, p.hi, p.soc, p.i, p.v].join(','));
+  }
+  return rows.join('\n');
+}
+async function copyText(text, boxId) {
+  try { await navigator.clipboard.writeText(text); banner('已复制到剪贴板。'); return; } catch (e) { /* 走手动复制 */ }
+  const box = $(boxId);
+  box.value = text; box.style.display = 'block'; box.focus(); box.select();
+  banner('自动复制不可用：请在下面的文本框里长按全选后复制。');
+}
+$('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
+$('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
+$('btnClear').onclick = () => {
+  if (!confirm('确定清空所有压差记录吗？')) return;
+  history = []; try { localStorage.removeItem(HIST_KEY); } catch (e) { /* 忽略 */ }
+  drawChart(history);
+};
+
+// ---------- 蓝牙连接 ----------
+async function writeBytes(u8) {
+  if (!chWrite) throw new Error('未连接');
+  log('发 ' + hex(u8));
+  const p = chWrite.properties || {};
+  if (p.writeWithoutResponse && chWrite.writeValueWithoutResponse) return chWrite.writeValueWithoutResponse(u8);
+  if (p.write && chWrite.writeValueWithResponse) return chWrite.writeValueWithResponse(u8);
+  return chWrite.writeValue(u8);
+}
+function request(cmd) {
+  return new Promise(resolve => {
+    rx = [];
+    const timer = setTimeout(() => {
+      if (pending && pending.cmd === cmd) { pending = null; misses++; resolve(false); }
+    }, 1500);
+    pending = { cmd, resolve, timer };
+    writeBytes(jbdRead(cmd)).catch(e => {
+      log('发送失败：' + e.message);
+      clearTimeout(timer); pending = null; misses++; resolve(false);
+    });
+  });
+}
+async function pollLoop() {
+  await request(0x05);
+  while (connected) {
+    await request(0x03);
+    if (!connected) break;
+    await request(0x04);
+    if (!gotFrame && misses >= 6) {
+      banner('已连接，但保护板没有按嘉佰达格式回应。请展开下面的"调试日志"，点"复制日志"，把内容发给 Claude。');
+    }
+    await sleep(1500);
+  }
+}
+async function connect() {
+  if (!navigator.bluetooth) {
+    banner('这个浏览器不支持网页蓝牙。iPhone 请用 Bluefy 打开本页；安卓或电脑请用 Chrome。');
+    return;
+  }
+  stopDemo();
+  banner('');
+  try {
+    const optionalServices = [SVC_CUSTOM, SVC_JBD, 0x180a];
+    const opts = $('chkAll').checked
+      ? { acceptAllDevices: true, optionalServices }
+      : { filters: [{ services: [ADV_SERVICE] }], optionalServices };
+    setStatus('选择设备…');
+    device = await navigator.bluetooth.requestDevice(opts);
+    log('选中设备：' + (device.name || '(无名称)'));
+    device.addEventListener('gattserverdisconnected', onDisconnected);
+    setStatus('连接中…');
+    const server = await device.gatt.connect();
+    let svc, wId = CH_WRITE, nId = CH_NOTIFY, custom = true;
+    try { svc = await server.getPrimaryService(SVC_CUSTOM); log('找到定制串口服务 00400001'); }
+    catch (e) { svc = await server.getPrimaryService(SVC_JBD); wId = JBD_WRITE; nId = JBD_NOTIFY; custom = false; log('找到嘉佰达标准服务 FF00'); }
+    chNotify = await svc.getCharacteristic(nId);
+    chWrite = await svc.getCharacteristic(wId);
+    chNotify.addEventListener('characteristicvaluechanged', e => {
+      const v = e.target.value;
+      onBytes(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+    });
+    await chNotify.startNotifications();
+    log('已订阅通知通道');
+    if (custom) {
+      try {
+        const v = await (await svc.getCharacteristic(CH_EXTRA)).readValue();
+        log('00400004 当前值：' + (hex(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)) || '(空)'));
+      } catch (e) { log('读 00400004 失败：' + e.message); }
+    }
+    connected = true; gotFrame = false; misses = 0; rx = [];
+    setStatus('已连接', true);
+    log('先静听 2 秒，看保护板会不会自己上报数据');
+    await sleep(2000);
+    pollLoop();
+  } catch (e) {
+    log('连接出错：' + e.message);
+    if (e.name !== 'NotFoundError') banner('连接失败：' + e.message);
+    if (device && device.gatt && device.gatt.connected) device.gatt.disconnect();
+    connected = false; setStatus('未连接');
+  }
+}
+function onDisconnected() {
+  if (!connected) return;
+  connected = false; chWrite = chNotify = null;
+  log('连接已断开');
+  setStatus('已断开');
+}
+function disconnect() {
+  stopDemo();
+  if (device && device.gatt && device.gatt.connected) device.gatt.disconnect();
+  connected = false;
+  setStatus('未连接');
+}
+$('btnConnect').onclick = connect;
+$('btnDisconnect').onclick = disconnect;
+
+$('btnSend').onclick = async () => {
+  const parts = $('hexIn').value.trim().split(/[\s,]+/).filter(Boolean);
+  const bytes = parts.map(p => parseInt(p, 16));
+  if (!bytes.length || bytes.some(b => !(b >= 0 && b <= 255))) { banner('指令格式不对，请输入用空格分开的十六进制字节。'); return; }
+  if (bytes[0] === 0xDD && bytes[1] === 0x5A) { banner('这是写入参数的指令，已拦截。本页面只读取数据。'); return; }
+  try { rx = []; await writeBytes(Uint8Array.from(bytes)); } catch (e) { banner('发送失败：' + e.message); }
+};
+
+// ---------- 演示模式：拼出嘉佰达格式的数据，走和真机一样的解析流程 ----------
+function u16(v) { return [(v >> 8) & 0xff, v & 0xff]; }
+function demoTick() {
+  const cells = [];
+  for (let i = 0; i < 20; i++) {
+    const base = i >= 16 ? 3266 : 3295;
+    cells.push(base + Math.round((Math.random() - 0.5) * 4));
+  }
+  const total = Math.round(cells.reduce((a, b) => a + b, 0) / 10);
+  const basic = [...u16(total), ...u16((-32 + 0x10000) & 0xffff), ...u16(3960), ...u16(6000), ...u16(0), ...u16(0x2f65),
+                 0, 0, 0, 0, ...u16(0), 0x24, 66, 3, 20, 2, ...u16(2731 + 150), ...u16(2731 + 130)];
+  for (const frame of [jbdResponse(0x03, basic), jbdResponse(0x04, cells.flatMap(u16))]) {
+    for (let i = 0; i < frame.length; i += 20) onBytes(frame.slice(i, i + 20));   // 模拟蓝牙每包 20 字节
+  }
+}
+function startDemo() {
+  if (connected) disconnect();
+  demoHist = [];
+  gotFrame = true;
+  banner('正在显示演示数据，不是你电池的真实数据。');
+  demoTick();
+  demoTimer = setInterval(demoTick, 2000);
+  setStatus('演示中');
+}
+function stopDemo() {
+  if (!demoTimer) return;
+  clearInterval(demoTimer); demoTimer = null;
+  banner(''); drawChart(history);
+}
+$('btnDemo').onclick = startDemo;
+
+window.addEventListener('resize', () => drawChart(demoTimer ? demoHist : history));
+drawChart(history);
+if (!navigator.bluetooth) banner('这个浏览器不支持网页蓝牙。iPhone 请用 Bluefy 打开本页；安卓或电脑请用 Chrome。');
+</script>
+</body>
+</html>
