@@ -69,7 +69,10 @@ label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; col
 .switch-row:first-of-type { border-top: 0; padding-top: 0; }
 .switch-row b { font-size: 16px; }
 .switch-row small { display: block; color: var(--muted); font-size: 12px; }
-.switch-row button { min-width: 108px; }
+.switch-row button { min-width: 108px; flex: none; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+td { padding: 6px 0; border-top: 1px solid var(--line); vertical-align: top; }
+td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 10px; }
 canvas { width: 100%; height: 170px; display: block; }
 details summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 pre {
@@ -108,12 +111,21 @@ textarea { height: 120px; margin-top: 8px; display: none; }
       <div class="stat big"><small>压差</small><b id="diff">--</b></div>
       <div class="stat big"><small>总电压</small><b id="totalV">--</b></div>
       <div class="stat big"><small>电流</small><b id="current">--</b></div>
-      <div class="stat"><small>最高单体</small><b id="maxV">--</b></div>
-      <div class="stat"><small>最低单体</small><b id="minV">--</b></div>
+      <div class="stat"><small id="maxLbl">最高单体</small><b id="maxV">--</b></div>
+      <div class="stat"><small id="minLbl">最低单体</small><b id="minV">--</b></div>
       <div class="stat"><small>平均单体</small><b id="avgV">--</b></div>
       <div class="stat"><small>温度</small><b id="temps">--</b></div>
       <div class="stat"><small>循环次数</small><b id="cycles">--</b></div>
       <div class="stat"><small>充 / 放电开关</small><b id="fet">--</b></div>
+      <div class="stat"><small>剩余容量</small><b id="remainAh">--</b></div>
+      <div class="stat"><small>满电容量</small><b id="fullAh">--</b></div>
+      <div class="stat"><small>剩余能量（估算）</small><b id="energy">--</b></div>
+      <div class="stat"><small>功率</small><b id="power">--</b></div>
+      <div class="stat"><small id="etaLbl">预计时间</small><b id="eta">--</b></div>
+      <div class="stat"><small>保护板报的电量</small><b id="rsoc">--</b></div>
+      <div class="stat"><small>电池串数</small><b id="cellCount">--</b></div>
+      <div class="stat"><small>生产日期</small><b id="prodDate">--</b></div>
+      <div class="stat"><small>保护板软件</small><b id="swVer">--</b></div>
     </div>
     <p class="note" id="protect"></p>
   </section>
@@ -148,6 +160,15 @@ textarea { height: 120px; margin-top: 8px; display: none; }
       <button id="btnClear">清空记录</button>
     </div>
     <textarea id="csvBox" readonly></textarea>
+  </section>
+
+  <section class="card">
+    <h2>功能开关和保护参数</h2>
+    <div class="row"><button id="btnParams" disabled>读取功能开关和参数</button></div>
+    <div class="banner" id="paramMsg"></div>
+    <div id="funcs" style="margin-top:10px"></div>
+    <table id="params"></table>
+    <p class="note">功能开关可以切换，改完会自动读回来核对。保护电压、电流、温度这些数值只显示，不能在这里修改。</p>
   </section>
 
   <section class="card">
@@ -222,8 +243,11 @@ function setStatus(text, on) {
   $('swMsg').classList.remove('show');
   renderSwitches();
 }
+const isReady = () => state.fet !== undefined && (connected || !!demoTimer);
 function renderSwitches() {
-  const ready = state.fet !== undefined && (connected || !!demoTimer);
+  const ready = isReady();
+  $('btnParams').disabled = !ready;
+  renderFuncs();
   for (const [key, bit, name] of [['chg', 1, '充电'], ['dsg', 2, '放电']]) {
     const on = !!(state.fet & bit);
     $(key + 'State').textContent = ready ? (on ? '现在：开' : '现在：关') : '连接后可用';
@@ -276,7 +300,7 @@ function handleFrame(f) {
   if (want !== got) { log('校验不对，丢弃这一帧'); return; }
   misses = 0;
   if (!gotFrame) { gotFrame = true; banner(''); }
-  if (pending && pending.cmd === cmd) { clearTimeout(pending.timer); const p = pending; pending = null; p.resolve({ ok: true, status }); }
+  if (pending && pending.cmd === cmd) { clearTimeout(pending.timer); const p = pending; pending = null; p.resolve({ ok: true, status, data }); }
   if (status !== 0) { log('保护板返回错误状态 0x' + status.toString(16)); return; }
   if (cmd === 0x03) parseBasic(data);
   else if (cmd === 0x04) parseCells(data);
@@ -291,6 +315,10 @@ function parseBasic(d) {
   state.remainAh = dv.getUint16(4) / 100;
   state.nominalAh = dv.getUint16(6) / 100;
   state.cycles = dv.getUint16(8);
+  const date = dv.getUint16(10);
+  state.prodDate = date ? (2000 + (date >> 9)) + '-' + String((date >> 5) & 0x0f).padStart(2, '0') + '-' + String(date & 0x1f).padStart(2, '0') : '--';
+  state.swVer = (d[18] >> 4) + '.' + (d[18] & 0x0f);
+  state.cellCount = d[21];
   state.balance = ((dv.getUint16(14) << 16) | dv.getUint16(12)) >>> 0;   // 第 n 节正在均衡 = 第 n-1 位为 1
   state.protect = dv.getUint16(16);
   state.rsoc = d[19];
@@ -330,6 +358,18 @@ function render() {
     $('fet').textContent = ((s.fet & 1) ? '开' : '关') + ' / ' + ((s.fet & 2) ? '开' : '关');
     const active = PROTECT.filter((_, i) => s.protect & (1 << i));
     $('protect').textContent = active.length ? '保护状态：' + active.join('、') : '';
+    $('remainAh').textContent = s.remainAh.toFixed(2) + ' Ah';
+    $('fullAh').textContent = s.nominalAh.toFixed(2) + ' Ah';
+    $('energy').textContent = (s.remainAh * s.totalV).toFixed(0) + ' Wh';
+    $('power').textContent = (s.totalV * s.current).toFixed(0) + ' W';
+    $('rsoc').textContent = s.rsoc + '%';
+    $('cellCount').textContent = s.cellCount + ' 串';
+    $('prodDate').textContent = s.prodDate;
+    $('swVer').textContent = s.swVer;
+    const hm = h => (h >= 100 ? '超过 99 小时' : Math.floor(h) + ' 小时 ' + Math.round((h % 1) * 60) + ' 分');
+    if (s.current <= -0.5) { $('etaLbl').textContent = '按现在的电流还能用'; $('eta').textContent = hm(s.remainAh / -s.current); }
+    else if (s.current >= 0.5) { $('etaLbl').textContent = '按现在的电流充满还要'; $('eta').textContent = hm(Math.max(0, s.nominalAh - s.remainAh) / s.current); }
+    else { $('etaLbl').textContent = '预计时间（电流太小）'; $('eta').textContent = '--'; }
     renderSwitches();
   }
   if (st) {
@@ -338,6 +378,8 @@ function render() {
     d.classList.toggle('bad', st.diff > 0.03 && Math.abs(s.current || 0) < 1);
     $('maxV').textContent = st.max.toFixed(3) + ' V';
     $('minV').textContent = st.min.toFixed(3) + ' V';
+    $('maxLbl').textContent = '最高（第 ' + (st.hi + 1) + ' 节）';
+    $('minLbl').textContent = '最低（第 ' + (st.lo + 1) + ' 节）';
     $('avgV').textContent = st.avg.toFixed(3) + ' V';
     renderBlocks(s.cells, st);
   }
@@ -528,6 +570,153 @@ async function setSwitch(which, turnOn) {
 }
 $('btnChg').onclick = () => setSwitch('chg', !(state.fet & 1));
 $('btnDsg').onclick = () => setSwitch('dsg', !(state.fet & 2));
+
+// ---------- 功能开关和保护参数（保护板的"设置模式"） ----------
+const FUNC_BITS = [
+  [2, '均衡功能', '关掉后保护板不再均衡，各节电压会越差越多，一般不要关。'],
+  [3, '只在充电时均衡', '打开：只有充电时才均衡。关闭：不充电时只要电压够高也会均衡。'],
+  [1, '负载检测', '短路保护后，要检测到负载拿掉才恢复输出。'],
+  [0, '外接开关功能', '打开后由外接的硬件开关控制输出。电池上没有接硬件开关时不要打开，否则会没有输出。'],
+  [4, '电量指示灯', '控制电量指示灯，没有指示灯的电池不起作用。'],
+];
+const fmt = {
+  cell: v => (v / 1000).toFixed(3) + ' V',
+  pack: v => (v / 100).toFixed(1) + ' V',
+  ah: v => (v / 100).toFixed(1) + ' Ah',
+  amp: v => (Math.abs(v > 32767 ? v - 65536 : v) / 100).toFixed(0) + ' A',
+  temp: v => ((v - 2731) / 10).toFixed(0) + ' °C',
+  mv: v => v + ' mV',
+  raw: v => String(v),
+};
+const PARAM_ROWS = [
+  ['设计容量', [0x10], fmt.ah], ['循环容量', [0x11], fmt.ah],
+  ['单体满电 / 放空电压', [0x12, 0x13], fmt.cell],
+  ['单体过压保护 / 恢复', [0x24, 0x25], fmt.cell], ['单体欠压保护 / 恢复', [0x26, 0x27], fmt.cell],
+  ['整组过压保护 / 恢复', [0x20, 0x21], fmt.pack], ['整组欠压保护 / 恢复', [0x22, 0x23], fmt.pack],
+  ['充电过流 / 放电过流', [0x28, 0x29], fmt.amp],
+  ['均衡启动电压', [0x2A], fmt.cell], ['均衡精度', [0x2B], fmt.mv],
+  ['充电高温保护 / 恢复', [0x18, 0x19], fmt.temp], ['充电低温保护 / 恢复', [0x1A, 0x1B], fmt.temp],
+  ['放电高温保护 / 恢复', [0x1C, 0x1D], fmt.temp], ['放电低温保护 / 恢复', [0x1E, 0x1F], fmt.temp],
+  ['电池串数', [0x2F], fmt.raw],
+];
+const REG_FUNC = 0x2D;
+let funcConfig = null, paramValues = null, paramBusy = false;
+
+// 演示模式里的假保护板：只在"设置模式"里才允许读写参数
+const demoRegs = { 0x10: 6000, 0x11: 6000, 0x12: 3650, 0x13: 2500, 0x18: 3381, 0x19: 3331, 0x1A: 2731, 0x1B: 2781,
+  0x1C: 3381, 0x1D: 3331, 0x1E: 2531, 0x1F: 2581, 0x20: 7300, 0x21: 7100, 0x22: 5000, 0x23: 5400, 0x24: 3650, 0x25: 3550,
+  0x26: 2500, 0x27: 2800, 0x28: 3000, 0x29: 65536 - 8000, 0x2A: 3400, 0x2B: 15, 0x2D: 0x0C, 0x2F: 20 };
+let demoFactory = false;
+function demoXfer(bytes) {
+  const reg = bytes[2], fail = { ok: true, status: 0x80, data: [] };
+  if (bytes[1] === 0x5A) {
+    const v = (bytes[4] << 8) | bytes[5];
+    if (reg === 0x00) demoFactory = v === 0x5678;
+    else if (reg === 0x01) demoFactory = false;
+    else if (!demoFactory) return fail;
+    else demoRegs[reg] = v;
+    return { ok: true, status: 0, data: [] };
+  }
+  if (!demoFactory || !(reg in demoRegs)) return fail;
+  return { ok: true, status: 0, data: [demoRegs[reg] >> 8, demoRegs[reg] & 0xff] };
+}
+function xfer(bytes, cmd) {
+  if (demoTimer) { log('发(演示) ' + hex(bytes)); return Promise.resolve(demoXfer(bytes)); }
+  return transact(bytes, cmd);
+}
+const regRead = reg => xfer(jbdRead(reg), reg);
+const regWrite = (reg, v) => xfer(jbdWrite(reg, [(v >> 8) & 0xff, v & 0xff]), reg);
+const good = r => r.ok && r.status === 0;
+const val16 = r => (good(r) && r.data.length >= 2 ? (r.data[0] << 8) | r.data[1] : null);
+
+// 进入设置模式 → 执行 fn → 退出。只有 fn 把 ctx.save 设为 true 才保存。
+function factorySession(fn) {
+  return serial(async () => {
+    if (!good(await regWrite(0x00, 0x5678))) return { error: '保护板没有进入设置模式，什么都没有改。' };
+    const ctx = { save: false };
+    let result;
+    try { result = await fn(ctx); }
+    finally {
+      const exit = await regWrite(0x01, ctx.save ? 0x2828 : 0x0000);
+      if (ctx.save && !good(exit) && result) result.error = '修改已经写入，但保存指令没有得到确认，断电后可能恢复原样。';
+    }
+    return result;
+  });
+}
+function paramSay(msg) { $('paramMsg').textContent = msg; $('paramMsg').classList.toggle('show', !!msg); }
+
+async function loadParams() {
+  if (!isReady() || paramBusy) return;
+  paramBusy = true; $('btnParams').disabled = true;
+  paramSay('正在读取，请稍等几秒…');
+  const res = await factorySession(async () => {
+    const values = {};
+    let failed = 0;
+    for (const reg of [REG_FUNC, ...PARAM_ROWS.flatMap(r => r[1])]) {
+      values[reg] = val16(await regRead(reg));
+      failed = values[reg] === null ? failed + 1 : 0;
+      if (failed >= 3) break;                 // 连续读不到就不再等，免得卡很久
+    }
+    return { values };
+  });
+  paramBusy = false;
+  if (res.error) paramSay(res.error);
+  else if (Object.values(res.values).every(v => v === null)) paramSay('保护板没有回应参数读取，可能这块板子不支持。');
+  else {
+    paramValues = res.values;
+    funcConfig = res.values[REG_FUNC];
+    paramSay(funcConfig === null ? '参数读到了，但功能开关读不到，所以下面不显示开关。' : '');
+    renderParams();
+  }
+  renderSwitches();
+}
+function renderParams() {
+  if (!paramValues) { $('params').innerHTML = ''; return; }
+  $('params').innerHTML = PARAM_ROWS.map(([label, regs, f]) => {
+    const text = regs.map(r => (paramValues[r] === null || paramValues[r] === undefined ? '读不到' : f(paramValues[r]))).join(' / ');
+    return '<tr><td>' + label + '</td><td>' + text + '</td></tr>';
+  }).join('');
+}
+function renderFuncs() {
+  if (funcConfig === null) { $('funcs').innerHTML = ''; return; }
+  const ready = isReady() && !paramBusy;
+  $('funcs').innerHTML = FUNC_BITS.map(([bit, name, desc]) => {
+    const on = !!(funcConfig & (1 << bit));
+    return '<div class="switch-row"><div><b>' + name + '</b><small>现在：' + (on ? '开' : '关') + '。' + desc + '</small></div>' +
+      '<button data-bit="' + bit + '"' + (ready ? '' : ' disabled') + '>' + (on ? '关闭' : '打开') + '</button></div>';
+  }).join('');
+}
+async function toggleFunc(bit) {
+  if (!isReady() || paramBusy || funcConfig === null) return;
+  const [, name, desc] = FUNC_BITS.find(f => f[0] === bit);
+  const turnOn = !(funcConfig & (1 << bit));
+  if (!confirm('确定' + (turnOn ? '打开' : '关闭') + '"' + name + '"吗？\n' + desc + '\n这个设置会保存在保护板里。')) return;
+  paramBusy = true; renderFuncs();
+  paramSay('正在修改…');
+  const res = await factorySession(async ctx => {
+    const cur = val16(await regRead(REG_FUNC));
+    if (cur === null) return { error: '读不到当前的功能配置，什么都没有改。' };
+    const next = turnOn ? cur | (1 << bit) : cur & ~(1 << bit);
+    if (next === cur) return { value: cur };
+    if (!good(await regWrite(REG_FUNC, next))) {
+      const now = val16(await regRead(REG_FUNC));
+      return { error: '保护板拒绝了这次修改。下面显示的是重新读回来的状态。', value: now === null ? cur : now };
+    }
+    const back = val16(await regRead(REG_FUNC));
+    if (back !== next) return { error: '写入后读回来的值不对，没有保存。', value: back === null ? cur : back };
+    ctx.save = true;
+    return { value: next };
+  });
+  paramBusy = false;
+  if (res.value !== undefined && res.value !== null) { funcConfig = res.value; if (paramValues) paramValues[REG_FUNC] = res.value; }
+  paramSay(res.error || '"' + name + '"已' + (turnOn ? '打开' : '关闭') + '，并且读回来核对过了。');
+  renderFuncs();
+}
+$('btnParams').onclick = loadParams;
+$('funcs').addEventListener('click', e => {
+  const btn = e.target.closest('button[data-bit]');
+  if (btn && !btn.disabled) toggleFunc(+btn.dataset.bit);
+});
 async function pollLoop() {
   await request(0x05);
   while (connected) {
