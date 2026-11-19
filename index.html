@@ -3,258 +3,399 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d4ed8">
 <title>电池监控</title>
 <style>
 :root {
-  --bg: #f3f5f8; --card: #ffffff; --text: #1a2330; --muted: #6b7786;
-  --line: #e1e6ec; --accent: #1f6feb; --accent-text: #ffffff;
-  --low: #d9480f; --low-bg: #fff0e6; --high: #1a7f37; --high-bg: #e6f6ea;
-  --warn-bg: #fff8db; --warn-text: #7a5b00; --bad: #c92a2a;
+  --bg: #f2f4f8; --card: #ffffff; --text: #111827; --muted: #6b7280; --line: #e6e9ef; --soft: #f5f7fa;
+  --accent: #2563eb; --accent-text: #ffffff; --accent-soft: #e8efff;
+  --hero-a: #2563eb; --hero-b: #1e3a8a;
+  --low: #d9480f; --low-bg: #fff1e7; --high: #15803d; --high-bg: #e7f7ec;
+  --warn-bg: #fef6d8; --warn-text: #7a5b00; --bad: #dc2626;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 14px rgba(16, 24, 40, .05);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0f141a; --card: #19212b; --text: #e6ebf1; --muted: #94a1b2;
-    --line: #2a3542; --accent: #4c8dff; --accent-text: #0b1220;
-    --low: #ff9f6b; --low-bg: #3a2416; --high: #63d283; --high-bg: #16301e;
-    --warn-bg: #3a3212; --warn-text: #f2d97a; --bad: #ff8787;
+    --bg: #0a0f16; --card: #141b25; --text: #e8edf3; --muted: #93a0b1; --line: #232f3f; --soft: #101721;
+    --accent: #5b9dff; --accent-text: #08111f; --accent-soft: #14233b;
+    --hero-a: #1d4ed8; --hero-b: #101c3f;
+    --low: #ff9a62; --low-bg: #38220f; --high: #5fd487; --high-bg: #12301e;
+    --warn-bg: #362e10; --warn-text: #f2d97a; --bad: #ff7b7b;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4);
   }
 }
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 15px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-  padding: 16px 16px calc(24px + env(safe-area-inset-bottom));
+  padding: 14px 16px calc(92px + env(safe-area-inset-bottom));
 }
 main { max-width: 560px; margin: 0 auto; }
-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-h1 { font-size: 20px; margin: 0; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 2px 2px 12px; }
+h1 { font-size: 19px; margin: 0; letter-spacing: .2px; }
+h1 small { font-size: 12px; font-weight: 400; color: var(--muted); margin-left: 4px; }
 h2 { font-size: 15px; margin: 0 0 10px; }
-.pill { font-size: 12px; padding: 3px 10px; border-radius: 999px; background: var(--line); color: var(--muted); white-space: nowrap; }
-.pill.on { background: var(--high-bg); color: var(--high); }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+.pill { font-size: 12px; padding: 4px 11px; border-radius: 999px; background: var(--line); color: var(--muted); white-space: nowrap; }
+.pill.on { background: var(--high-bg); color: var(--high); font-weight: 600; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 button {
   font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text);
-  border-radius: 8px; padding: 9px 14px; min-height: 40px; cursor: pointer;
+  border-radius: 10px; padding: 9px 14px; min-height: 42px; cursor: pointer; transition: transform .06s, opacity .15s;
 }
+button:active { transform: scale(.97); }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
-button:disabled { opacity: .45; cursor: default; }
+button.big { flex: 1; min-height: 54px; font-size: 16px; font-weight: 600; border-radius: 14px; }
+button:disabled { opacity: .45; cursor: default; transform: none; }
 label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-top: 10px; }
-.banner { display: none; background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 10px 12px; margin-top: 10px; font-size: 13px; }
+.banner { display: none; background: var(--warn-bg); color: var(--warn-text); border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 13px; }
 .banner.show { display: block; }
-#toast {
-  display: none; position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 20;
-  max-width: 528px; margin: 0 auto; background: var(--text); color: var(--bg); border-radius: 10px; padding: 12px 14px;
-  font-size: 14px; box-shadow: 0 4px 16px rgba(0, 0, 0, .25);
-}
-#toast.show { display: block; }
-.soc { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
-.soc b { font-size: 40px; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.soc span { color: var(--muted); font-size: 13px; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; }
-.stat small { display: block; color: var(--muted); font-size: 12px; }
-.stat b { font-size: 17px; font-variant-numeric: tabular-nums; }
-.stat.big b { font-size: 22px; }
-.stat b.bad { color: var(--bad); }
 .note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
-.block { border-top: 1px solid var(--line); padding: 8px 0; }
+.note:empty { display: none; }
+
+/* 顶部电量区 */
+.hero { background: linear-gradient(140deg, var(--hero-a), var(--hero-b)); color: #fff; border: 0; padding: 18px 18px 16px; }
+.hero .soc { display: flex; align-items: baseline; gap: 10px; }
+.hero .soc b { font-size: 54px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+.hero .soc span { font-size: 12px; opacity: .8; }
+.socbar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .22); margin: 12px 0 14px; overflow: hidden; }
+.socbar i { display: block; height: 100%; width: 0; border-radius: 99px; background: #fff; transition: width .4s; }
+.trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.trio small { display: block; font-size: 12px; opacity: .8; }
+.trio b { font-size: 21px; font-variant-numeric: tabular-nums; }
+.trio b.bad { background: #fff; color: #dc2626; border-radius: 7px; padding: 0 6px; margin-left: -6px; }
+
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; }
+.stat small { display: block; color: var(--muted); font-size: 12px; }
+.stat b { font-size: 16px; font-variant-numeric: tabular-nums; }
+
+/* 电芯 */
+.block { border-top: 1px solid var(--line); padding: 10px 0; }
 .block:first-child { border-top: 0; padding-top: 0; }
-.block-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.block-head.lowest { color: var(--low); font-weight: 600; }
-.block-sub { font-size: 12px; color: var(--muted); margin: -2px 0 6px; }
+.block-head { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.block-head span:last-child { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.block-head.lowest, .block-head.lowest span:last-child { color: var(--low); }
+.block-sub { font-size: 12px; color: var(--muted); margin: 0 0 8px; }
 .cells { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.cell { border: 1px solid var(--line); border-radius: 8px; padding: 5px 4px; text-align: center; }
+.cell { position: relative; background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 6px 4px 8px; text-align: center; overflow: hidden; }
 .cell small { display: block; color: var(--muted); font-size: 11px; }
 .cell b { font-size: 14px; font-variant-numeric: tabular-nums; }
+.cell i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--accent); opacity: .55; border-radius: 0 3px 3px 0; }
 .cell.min { background: var(--low-bg); border-color: var(--low); }
 .cell.min b { color: var(--low); }
+.cell.min i { background: var(--low); opacity: 1; }
 .cell.max { background: var(--high-bg); border-color: var(--high); }
 .cell.max b { color: var(--high); }
+.cell.max i { background: var(--high); opacity: 1; }
 .cell.bal small::after { content: ' 均衡'; color: var(--accent); font-weight: 600; }
+
 .switch-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
 .switch-row:first-of-type { border-top: 0; padding-top: 0; }
 .switch-row b { font-size: 16px; }
 .switch-row small { display: block; color: var(--muted); font-size: 12px; }
 .switch-row button { min-width: 108px; flex: none; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
-td { padding: 6px 0; border-top: 1px solid var(--line); vertical-align: top; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+td { padding: 7px 0; border-top: 1px solid var(--line); vertical-align: top; }
+tr:first-child td { border-top: 0; }
 td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 10px; }
-canvas { width: 100%; height: 170px; display: block; }
+canvas { width: 100%; height: 180px; display: block; }
 details summary { cursor: pointer; font-weight: 600; font-size: 15px; }
 pre {
-  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin: 10px 0;
+  background: var(--soft); border: 1px solid var(--line); border-radius: 10px; padding: 8px; margin: 10px 0;
   font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; max-height: 260px; overflow: auto;
   white-space: pre-wrap; word-break: break-all;
 }
-select { font: inherit; width: 100%; padding: 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-height: 40px; }
+select { font: inherit; width: 100%; padding: 9px; border-radius: 10px; border: 1px solid var(--line); background: var(--soft); color: var(--text); min-height: 42px; }
 input[type="text"], input[type="password"], textarea {
-  font: 13px ui-monospace, Menlo, Consolas, monospace; width: 100%; padding: 9px; border-radius: 8px;
-  border: 1px solid var(--line); background: var(--bg); color: var(--text);
+  font: 13px ui-monospace, Menlo, Consolas, monospace; width: 100%; padding: 10px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--soft); color: var(--text);
 }
 textarea { height: 120px; margin-top: 8px; display: none; }
 .send { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+
+/* 标签页 */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+nav.tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: flex; justify-content: center;
+  background: var(--card); border-top: 1px solid var(--line); padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+}
+nav.tabs div { display: flex; width: 100%; max-width: 560px; gap: 4px; }
+nav.tabs button { flex: 1; border: 0; background: none; color: var(--muted); min-height: 50px; padding: 4px; border-radius: 12px; font-size: 12px; }
+nav.tabs button span { display: block; font-size: 19px; line-height: 1.2; }
+nav.tabs button.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+
+#toast {
+  display: none; position: fixed; left: 16px; right: 16px; bottom: calc(82px + env(safe-area-inset-bottom)); z-index: 40;
+  max-width: 528px; margin: 0 auto; background: #111827; color: #fff; border-radius: 12px; padding: 12px 14px;
+  font-size: 14px; box-shadow: 0 6px 20px rgba(0, 0, 0, .3);
+}
+#toast.show { display: block; }
+
+/* 骑行模式：全屏、深色、大字 */
+.ride {
+  position: fixed; inset: 0; z-index: 30; background: #05080d; color: #f3f6fa; overflow-y: auto;
+  padding: calc(14px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 12px;
+}
+.ride[hidden] { display: none; }
+.ride-top { display: flex; align-items: center; gap: 12px; }
+.ride-top b { font-size: 34px; font-variant-numeric: tabular-nums; line-height: 1; }
+.ride-top .ride-bar { flex: 1; height: 12px; border-radius: 99px; background: #1b2532; overflow: hidden; }
+.ride-top .ride-bar i { display: block; height: 100%; width: 0; background: #35c46b; border-radius: 99px; transition: width .4s, background .4s; }
+.ride-top button { background: #17202c; border-color: #2a3646; color: #c8d2de; min-height: 40px; }
+.ride-main { text-align: center; padding: 6px 0 2px; }
+.ride-main b { display: block; font-size: 96px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -3px; }
+.ride-main small { color: #8b98a8; font-size: 14px; }
+.ride-sub { display: flex; justify-content: center; gap: 22px; margin-top: 8px; font-size: 22px; font-variant-numeric: tabular-nums; color: #c8d2de; }
+.ride-warn { display: none; background: #b91c1c; color: #fff; border-radius: 12px; padding: 12px 14px; font-size: 16px; font-weight: 600; text-align: center; }
+.ride-warn.show { display: block; }
+.ride-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.ride-grid div { background: #0f151d; border: 1px solid #1c2633; border-radius: 14px; padding: 12px 14px; }
+.ride-grid small { display: block; color: #8b98a8; font-size: 12px; }
+.ride-grid b { font-size: 26px; font-variant-numeric: tabular-nums; }
+.ride-grid em { font-style: normal; font-size: 12px; color: #8b98a8; margin-left: 4px; }
+.ride-foot { margin-top: auto; text-align: center; }
+.ride-foot button { background: #17202c; border-color: #2a3646; color: #c8d2de; }
+.ride-foot small { display: block; color: #6b7888; font-size: 12px; margin-top: 8px; }
+@media (min-width: 620px) and (orientation: landscape) {
+  .ride-grid { grid-template-columns: repeat(4, 1fr); }
+  .ride-main b { font-size: 84px; }
+}
 </style>
 </head>
 <body>
 <main>
   <header>
-    <h1>电池监控 <small style="font-size:12px;font-weight:400;color:var(--muted)">第 11 版</small></h1>
+    <h1>电池监控<small>第 12 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
-  <section class="card">
-    <div class="row">
-      <button class="primary" id="btnConnect">连接电池</button>
-      <button id="btnDisconnect" disabled>断开</button>
-      <button id="btnDemo">演示数据</button>
-      <button id="btnUpload">上传日志</button>
-    </div>
-    <label class="check"><input type="checkbox" id="chkAll"> 列表里找不到电池时，勾选这里显示所有蓝牙设备</label>
-    <div class="banner" id="banner"></div>
-    <p class="note" id="awakeNote"></p>
-  </section>
+  <!-- ===== 总览 ===== -->
+  <div class="tab-panel active" data-tab="home">
+    <section class="card hero">
+      <div class="soc"><b id="soc">--</b><span id="socSub">连接后显示电量</span></div>
+      <div class="socbar"><i id="socBar"></i></div>
+      <div class="trio">
+        <div><small>压差</small><b id="diff">--</b></div>
+        <div><small>电流</small><b id="current">--</b></div>
+        <div><small>总电压</small><b id="totalV">--</b></div>
+      </div>
+    </section>
 
-  <section class="card">
-    <h2>每日打卡（半分钟）</h2>
-    <p class="note" style="margin-top:0">选好电池现在的状态，点"一键打卡"：自动连接、等数据收齐、记一条快照并上传。弹出列表时选名称结尾 01 的那一块。</p>
-    <div class="send">
-      <select id="snapNote">
-        <option>放了一夜</option>
-        <option>静置几小时</option>
-        <option>静置半小时以上</option>
-        <option>刚停车</option>
-        <option>充电中</option>
-        <option>刚充满</option>
-        <option>骑行中</option>
-      </select>
-      <button class="primary" id="btnCheckIn">一键打卡</button>
-    </div>
-    <table id="snapTable"></table>
-    <div class="row" style="margin-top:8px">
-      <button id="btnSnap">只记一条</button>
-      <button id="btnSnapCopy">复制快照</button>
-      <button id="btnSnapUndo">删掉最新一条</button>
-    </div>
-    <textarea id="snapBox" readonly></textarea>
-  </section>
-
-  <section class="card">
-    <div class="soc"><b id="soc">--</b><span id="socSub">剩余电量</span></div>
-    <div class="stats">
-      <div class="stat big"><small>压差</small><b id="diff">--</b></div>
-      <div class="stat big"><small>总电压</small><b id="totalV">--</b></div>
-      <div class="stat big"><small>电流</small><b id="current">--</b></div>
-      <div class="stat"><small id="maxLbl">最高单体</small><b id="maxV">--</b></div>
-      <div class="stat"><small id="minLbl">最低单体</small><b id="minV">--</b></div>
-      <div class="stat"><small>平均单体</small><b id="avgV">--</b></div>
-      <div class="stat"><small id="tempLbl">温度</small><b id="temps">--</b></div>
-      <div class="stat"><small>循环次数</small><b id="cycles">--</b></div>
-      <div class="stat"><small>充 / 放电开关</small><b id="fet">--</b></div>
-      <div class="stat"><small>剩余容量</small><b id="remainAh">--</b></div>
-      <div class="stat"><small>满电容量</small><b id="fullAh">--</b></div>
-      <div class="stat"><small>剩余能量（估算）</small><b id="energy">--</b></div>
-      <div class="stat"><small>功率</small><b id="power">--</b></div>
-      <div class="stat"><small id="etaLbl">预计时间</small><b id="eta">--</b></div>
-      <div class="stat"><small>保护板报的电量</small><b id="rsoc">--</b></div>
-      <div class="stat"><small>电池串数</small><b id="cellCount">--</b></div>
-      <div class="stat"><small>生产日期</small><b id="prodDate">--</b></div>
-      <div class="stat"><small>保护板软件</small><b id="swVer">--</b></div>
-    </div>
-    <p class="note" id="protect"></p>
-  </section>
-
-  <section class="card" id="cardVendor" style="display:none">
-    <h2>控制功能暂时用不了</h2>
-    <p class="note" style="margin-top:0">这块电池用的是厂家自己的数据格式。读数据已经可以了；充放电开关、功能开关和参数用什么指令还不知道，所以先不显示，免得发错指令。</p>
-  </section>
-
-  <section class="card" id="cardSwitch">
-    <h2>充放电开关</h2>
-    <div class="switch-row">
-      <div><b>充电</b><small id="chgState">连接后可用</small></div>
-      <button id="btnChg" disabled>--</button>
-    </div>
-    <div class="switch-row">
-      <div><b>放电</b><small id="dsgState">连接后可用</small></div>
-      <button id="btnDsg" disabled>--</button>
-    </div>
-    <div class="banner" id="swMsg"></div>
-    <p class="note">关闭放电后车子会断电，接在电池上的定位器也会没电。开关状态由保护板记住，要再点一次才会恢复。</p>
-  </section>
-
-  <section class="card">
-    <h2>单体电压（每 4 节一组，对应一块电池）</h2>
-    <div id="blocks"><p class="note">连接后显示。</p></div>
-    <p class="note" id="gapInfo"></p>
-    <p class="note" id="balInfo"></p>
-    <p class="note" id="orderNote">橙色是最低的一节，绿色是最高的一节。组的编号由保护板决定，断电后可能变化。</p>
-  </section>
-
-  <section class="card" id="cardSess" style="display:none">
-    <h2>本次统计（从连接开始）</h2>
-    <table id="sessTable"></table>
-    <div class="row" style="margin-top:8px"><button id="btnSessReset">重新开始统计</button></div>
-  </section>
-
-  <section class="card" id="cardIr" style="display:none">
-    <h2>内阻估算（骑车时才有）</h2>
-    <p class="note" id="irInfo" style="margin-top:0">需要最近 5 分钟里电流变化超过 3 A 才能算。现在数据还不够。</p>
-    <table id="irTable"></table>
-    <p class="note">算法：电流变化时，看每节电压跟着变了多少。数值里包含连接片和插头的电阻，适合用来比较各块之间的差别，不能当成电芯的标称内阻。</p>
-  </section>
-
-  <section class="card">
-    <h2>压差记录</h2>
-    <canvas id="chart"></canvas>
-    <p class="note" id="histInfo">每 10 秒记一次，保存在这台手机的浏览器里。</p>
-    <div class="row" style="margin-top:8px">
-      <button id="btnCsv">复制记录</button>
-      <button id="btnClear">清空记录</button>
-    </div>
-    <textarea id="csvBox" readonly></textarea>
-  </section>
-
-  <section class="card" id="cardParams">
-    <h2>功能开关和保护参数</h2>
-    <div class="row"><button id="btnParams" disabled>读取功能开关和参数</button></div>
-    <div class="banner" id="paramMsg"></div>
-    <div id="funcs" style="margin-top:10px"></div>
-    <table id="params"></table>
-    <p class="note">功能开关可以切换，改完会自动读回来核对。保护电压、电流、温度这些数值只显示，不能在这里修改。</p>
-  </section>
-
-  <section class="card">
-    <h2>上传日志给 Claude</h2>
-    <p class="note" style="margin-top:0">第一步只做一次：把 github_pat_ 开头的密钥粘到下面，点"保存密钥"。</p>
-    <div class="send">
-      <input type="password" id="tokenIn" placeholder="在这里粘贴密钥" autocomplete="off">
-      <button id="btnSaveToken">保存密钥</button>
-    </div>
-    <p class="note" id="tokenState"></p>
-    <p class="note">第二步：连上电池后点这个按钮，日志和压差记录会传到你自己的 GitHub 私有仓库。</p>
-    <div class="row"><button class="primary" id="btnUpload2">上传日志</button></div>
-  </section>
-
-  <section class="card">
-    <details id="dbg">
-      <summary>调试日志</summary>
-      <pre id="log">（还没有日志）</pre>
+    <section class="card">
       <div class="row">
-        <button id="btnCopyLog">复制日志</button>
-        <button id="btnShareLog">分享日志</button>
+        <button class="primary" id="btnConnect">连接电池</button>
+        <button id="btnDisconnect" disabled>断开</button>
       </div>
-      <textarea id="logBox" readonly></textarea>
-      <p class="note">还没认出含义的字节（研究用，方括号里是字节位置）：</p>
-      <pre id="rawFields">（连接后显示）</pre>
-      <p class="note">给保护板手动发十六进制指令（只用于研究协议，平时不用。这里不是填密钥的地方）：</p>
+      <label class="check"><input type="checkbox" id="chkAll"> 列表里找不到电池时，勾选这里显示所有蓝牙设备</label>
+      <div class="banner" id="banner"></div>
+      <p class="note" id="awakeNote"></p>
+    </section>
+
+    <section class="card">
+      <h2>每日打卡</h2>
       <div class="send">
-        <input type="text" id="hexIn" placeholder="例如 DD A5 03 00 FF FD 77" autocapitalize="characters" autocomplete="off">
-        <button id="btnSend">发指令</button>
+        <select id="snapNote">
+          <option>放了一夜</option>
+          <option>静置几小时</option>
+          <option>静置半小时以上</option>
+          <option>刚停车</option>
+          <option>充电中</option>
+          <option>刚充满</option>
+          <option>骑行中</option>
+        </select>
+        <button class="primary" id="btnCheckIn">一键打卡</button>
       </div>
-    </details>
-  </section>
+      <p class="note">选好电池现在的状态再点：自动连接、等数据收齐、记一条快照并上传。弹出列表时选名称结尾 01 的那一块。</p>
+    </section>
+
+    <div class="row" style="margin-bottom:12px">
+      <button class="primary big" id="btnRide">进入骑行模式</button>
+    </div>
+
+    <section class="card">
+      <h2>详细数据</h2>
+      <div class="stats">
+        <div class="stat"><small id="maxLbl">最高单体</small><b id="maxV">--</b></div>
+        <div class="stat"><small id="minLbl">最低单体</small><b id="minV">--</b></div>
+        <div class="stat"><small>平均单体</small><b id="avgV">--</b></div>
+        <div class="stat"><small>剩余容量</small><b id="remainAh">--</b></div>
+        <div class="stat"><small>满电容量</small><b id="fullAh">--</b></div>
+        <div class="stat"><small>剩余能量（估算）</small><b id="energy">--</b></div>
+        <div class="stat"><small>功率</small><b id="power">--</b></div>
+        <div class="stat"><small id="etaLbl">预计时间</small><b id="eta">--</b></div>
+        <div class="stat"><small id="tempLbl">温度</small><b id="temps">--</b></div>
+        <div class="stat"><small>保护板报的电量</small><b id="rsoc">--</b></div>
+        <div class="stat"><small>电池串数</small><b id="cellCount">--</b></div>
+        <div class="stat"><small>循环次数</small><b id="cycles">--</b></div>
+        <div class="stat"><small>充 / 放电开关</small><b id="fet">--</b></div>
+        <div class="stat"><small>生产日期</small><b id="prodDate">--</b></div>
+        <div class="stat"><small>保护板软件</small><b id="swVer">--</b></div>
+      </div>
+      <p class="note" id="protect"></p>
+    </section>
+
+    <section class="card" id="cardSess" style="display:none">
+      <h2>本次统计（从连接开始）</h2>
+      <table id="sessTable"></table>
+      <div class="row" style="margin-top:8px"><button id="btnSessReset">重新开始统计</button></div>
+    </section>
+  </div>
+
+  <!-- ===== 电芯 ===== -->
+  <div class="tab-panel" data-tab="cells">
+    <section class="card">
+      <h2>单体电压（每 4 节是一块电池）</h2>
+      <div id="blocks"><p class="note">连接后显示。</p></div>
+      <p class="note" id="gapInfo"></p>
+      <p class="note" id="balInfo"></p>
+      <p class="note" id="orderNote">橙色是最低的一节，绿色是最高的一节。组的编号由保护板决定，断电后可能变化。</p>
+    </section>
+
+    <section class="card" id="cardIr" style="display:none">
+      <h2>内阻估算（骑车时才有）</h2>
+      <p class="note" id="irInfo" style="margin-top:0">需要最近 5 分钟里电流变化超过 3 A 才能算。现在数据还不够。</p>
+      <table id="irTable"></table>
+      <p class="note">算法：电流变化时，看每节电压跟着变了多少。数值里包含连接片和插头的电阻，适合用来比较各块之间的差别，不能当成电芯的标称内阻。</p>
+    </section>
+  </div>
+
+  <!-- ===== 记录 ===== -->
+  <div class="tab-panel" data-tab="records">
+    <section class="card">
+      <h2>快照</h2>
+      <table id="snapTable"></table>
+      <div class="row" style="margin-top:10px">
+        <button id="btnSnap">记一条</button>
+        <button id="btnSnapCopy">复制快照</button>
+        <button id="btnSnapUndo">删掉最新一条</button>
+      </div>
+      <textarea id="snapBox" readonly></textarea>
+      <p class="note">"记一条"用的是总览页"每日打卡"里选的状态。同一种状态、差不多的电量下攒几条，就能看出最低那一块的差距有没有变大。</p>
+    </section>
+
+    <section class="card">
+      <h2>压差记录</h2>
+      <canvas id="chart"></canvas>
+      <p class="note" id="histInfo">每 10 秒记一次，保存在这台手机的浏览器里。</p>
+      <div class="row" style="margin-top:8px">
+        <button id="btnCsv">复制记录</button>
+        <button id="btnClear">清空记录</button>
+      </div>
+      <textarea id="csvBox" readonly></textarea>
+    </section>
+
+    <div class="row" style="margin-bottom:12px">
+      <button class="primary big" id="btnUpload">上传日志给 Claude</button>
+    </div>
+  </div>
+
+  <!-- ===== 工具 ===== -->
+  <div class="tab-panel" data-tab="tools">
+    <section class="card">
+      <h2>上传设置</h2>
+      <p class="note" style="margin-top:0">只做一次：把 github_pat_ 开头的密钥粘到下面，点"保存密钥"。日志只会传到你自己的 GitHub 私有仓库。</p>
+      <div class="send">
+        <input type="password" id="tokenIn" placeholder="在这里粘贴密钥" autocomplete="off">
+        <button id="btnSaveToken">保存密钥</button>
+      </div>
+      <p class="note" id="tokenState"></p>
+      <div class="row" style="margin-top:10px"><button id="btnUpload2">上传日志</button></div>
+    </section>
+
+    <section class="card" id="cardVendor" style="display:none">
+      <h2>控制功能暂时用不了</h2>
+      <p class="note" style="margin-top:0">这块电池用的是厂家自己的数据格式。读数据已经可以了；充放电开关、功能开关和参数用什么指令还不知道，所以先不显示，免得发错指令。</p>
+    </section>
+
+    <section class="card" id="cardSwitch">
+      <h2>充放电开关</h2>
+      <div class="switch-row">
+        <div><b>充电</b><small id="chgState">连接后可用</small></div>
+        <button id="btnChg" disabled>--</button>
+      </div>
+      <div class="switch-row">
+        <div><b>放电</b><small id="dsgState">连接后可用</small></div>
+        <button id="btnDsg" disabled>--</button>
+      </div>
+      <div class="banner" id="swMsg"></div>
+      <p class="note">关闭放电后车子会断电，接在电池上的定位器也会没电。开关状态由保护板记住，要再点一次才会恢复。</p>
+    </section>
+
+    <section class="card" id="cardParams">
+      <h2>功能开关和保护参数</h2>
+      <div class="row"><button id="btnParams" disabled>读取功能开关和参数</button></div>
+      <div class="banner" id="paramMsg"></div>
+      <div id="funcs" style="margin-top:10px"></div>
+      <table id="params"></table>
+      <p class="note">功能开关可以切换，改完会自动读回来核对。保护电压、电流、温度这些数值只显示，不能在这里修改。</p>
+    </section>
+
+    <section class="card">
+      <h2>其他</h2>
+      <div class="row"><button id="btnDemo">看演示数据</button></div>
+      <p class="note">演示数据是模拟的，用来看界面，不是你电池的真实数据。</p>
+    </section>
+
+    <section class="card">
+      <details id="dbg">
+        <summary>调试日志</summary>
+        <pre id="log">（还没有日志）</pre>
+        <div class="row">
+          <button id="btnCopyLog">复制日志</button>
+          <button id="btnShareLog">分享日志</button>
+        </div>
+        <textarea id="logBox" readonly></textarea>
+        <p class="note">还没认出含义的字节（研究用，方括号里是字节位置）：</p>
+        <pre id="rawFields">（连接后显示）</pre>
+        <p class="note">给保护板手动发十六进制指令（只用于研究协议，平时不用。这里不是填密钥的地方）：</p>
+        <div class="send">
+          <input type="text" id="hexIn" placeholder="例如 DD A5 03 00 FF FD 77" autocapitalize="characters" autocomplete="off">
+          <button id="btnSend">发指令</button>
+        </div>
+      </details>
+    </section>
+  </div>
 </main>
+
+<nav class="tabs"><div>
+  <button data-go="home" class="active"><span>◎</span>总览</button>
+  <button data-go="cells"><span>▦</span>电芯</button>
+  <button data-go="records"><span>◷</span>记录</button>
+  <button data-go="tools"><span>⚙</span>工具</button>
+</div></nav>
+
+<!-- ===== 骑行模式 ===== -->
+<div class="ride" id="ride" hidden>
+  <div class="ride-top">
+    <b id="rSoc">--</b>
+    <div class="ride-bar"><i id="rSocBar"></i></div>
+    <button id="btnRideExit">退出</button>
+  </div>
+  <div class="ride-main">
+    <b id="rPower">--</b>
+    <small id="rPowerLbl">功率（瓦）</small>
+    <div class="ride-sub"><span id="rCurrent">-- A</span><span id="rSpeed"></span></div>
+  </div>
+  <div class="ride-warn" id="rWarn"></div>
+  <div class="ride-grid">
+    <div><small>最低单体</small><b id="rMinV">--</b><em id="rMinName"></em></div>
+    <div><small>压差</small><b id="rDiff">--</b></div>
+    <div><small>最高温度</small><b id="rTemp">--</b></div>
+    <div><small>总电压</small><b id="rVolt">--</b></div>
+    <div><small>本次用电</small><b id="rUsed">--</b></div>
+    <div><small>里程</small><b id="rDist">--</b></div>
+    <div><small>能耗（瓦时/公里）</small><b id="rEff">--</b></div>
+    <div><small>预计还能跑</small><b id="rRange">--</b></div>
+  </div>
+  <div class="ride-foot">
+    <button id="btnRideGps">显示车速和里程</button>
+    <small id="rGpsNote">车速和里程用手机定位计算，只在这台手机上使用，不会上传。骑车时请不要操作手机。</small>
+  </div>
+</div>
+
 <div id="toast" role="status"></div>
 
 <script>
@@ -424,8 +565,10 @@ function handleVendor(f) {
       raw: f,
     };
     irPush(f[6], modules[f[6]].current, modules[f[6]].cells);
+    state.liveCurrent = modules[f[6]].current;     // 各块轮流上报，约每秒一次，比汇总数据更新得快
   } else if (f[4] === 0x02 && f.length >= 30) {
     summary = { soc: f[21] / 2, totalV: u(22) / 10, current: (u(24) - 30000) / 100, raw: f };
+    state.liveCurrent = summary.current;
   } else return;
   applyVendor();
 }
@@ -675,7 +818,7 @@ function render() {
     if (s.modules) {
       const socs = s.modules.map(m => m.soc);
       $('socSub').textContent = summary
-        ? '整组汇总值。各块自己算的是 ' + Math.min(...socs).toFixed(1) + '%～' + Math.max(...socs).toFixed(1) + '%'
+        ? '各块自己算的是 ' + Math.min(...socs).toFixed(1) + '%～' + Math.max(...socs).toFixed(1) + '%'
         : '这块电池自己算的电量';
     } else {
       $('socSub').textContent = '剩余 ' + s.remainAh.toFixed(1) + ' / ' + s.nominalAh.toFixed(1) + ' Ah';
@@ -713,6 +856,8 @@ function render() {
     $('avgV').textContent = st.avg.toFixed(3) + ' V';
     renderBlocks(s.cells, st);
   }
+  if (s.socPct !== undefined) $('socBar').style.width = Math.max(0, Math.min(100, s.socPct)) + '%';
+  renderRide();
 }
 // 把电芯按"块"分组：厂家格式按模块分，其他情况每 4 节一组。顺便算出最低的一块比其他块低多少。
 function blockGroups(cells) {
@@ -743,13 +888,15 @@ function renderBlocks(cells, st) {
     : state.modules && state.modules.length === 1
       ? '你现在连的是单独一块电池，只能看到它自己的 4 节。要看全部 20 节，请连名称结尾是 01 的那一块。'
       : '';
+  const span = Math.max(st.max - st.min, 0.01);          // 每节底部的小横条：在最低和最高之间的相对位置
   $('blocks').innerHTML = groups.map(g => {
     const isLow = g === lowest && gap >= 0.005;
     const cellsHtml = g.part.map((v, k) => {
       const idx = g.start + k;
       const bal = idx < 32 && ((state.balance >>> idx) & 1) ? ' bal' : '';
       const cls = (idx === st.lo ? ' min' : idx === st.hi ? ' max' : '') + bal;
-      return '<div class="cell' + cls + '"><small>' + (idx + 1) + '</small><b>' + v.toFixed(3) + '</b></div>';
+      const w = Math.round(12 + 88 * (v - st.min) / span);
+      return '<div class="cell' + cls + '"><small>' + (idx + 1) + '</small><b>' + v.toFixed(3) + '</b><i style="width:' + w + '%"></i></div>';
     }).join('');
     const sub = g.mod
       ? '<div class="block-sub">电量 ' + g.mod.soc.toFixed(1) + '% · 剩余 ' + g.mod.remainAh.toFixed(2) + ' Ah · 温度 ' +
@@ -866,7 +1013,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 11 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 12 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -889,6 +1036,7 @@ async function uploadLog() {
   const token = getToken();
   if (!token) {
     banner('还没有保存上传密钥。请在"上传日志给 Claude"那一块粘贴密钥，点"保存密钥"。');
+    showTab('tools');
     $('tokenIn').scrollIntoView({ block: 'center' });
     return false;
   }
@@ -1316,6 +1464,120 @@ function stopDemo() {
   banner(''); drawChart(history); renderSwitches();
 }
 $('btnDemo').onclick = startDemo;
+
+// ---------- 标签页 ----------
+function showTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === name));
+  document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.go === name));
+  window.scrollTo(0, 0);
+  if (name === 'records') drawChart(demoTimer ? demoHist : history);   // 画布要显示出来才量得到宽度
+}
+document.querySelectorAll('nav.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.go); });
+
+// ---------- 骑行模式：全屏大字，只看不操作 ----------
+const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null };
+function renderRide() {
+  if (!ride.on) return;
+  const s = state, st = cellStats(s.cells);
+  const put = (id, text) => { $(id).textContent = text; };
+  if (s.socPct !== undefined) {
+    put('rSoc', s.socPct.toFixed(0) + '%');
+    $('rSocBar').style.width = Math.max(0, Math.min(100, s.socPct)) + '%';
+    $('rSocBar').style.background = s.socPct <= 15 ? '#ef4444' : s.socPct <= 30 ? '#f59e0b' : '#35c46b';
+  }
+  const cur = s.liveCurrent !== undefined && s.modules ? s.liveCurrent : s.current;
+  if (cur !== undefined && s.totalV !== undefined) {
+    const watts = -cur * s.totalV;                          // 放电为正
+    put('rPower', Math.abs(watts) < 10 ? '0' : Math.abs(watts).toFixed(0));
+    put('rPowerLbl', watts < -10 ? '正在充电（瓦）' : '功率（瓦）');
+    put('rCurrent', Math.abs(cur).toFixed(1) + ' A');
+    put('rVolt', s.totalV.toFixed(1) + ' V');
+  }
+  put('rSpeed', ride.speed === null ? '' : (ride.speed * 3.6).toFixed(0) + ' km/h');
+  const warns = [];
+  if (st) {
+    put('rMinV', st.min.toFixed(3));
+    put('rMinName', s.modules ? s.modules[Math.floor(st.lo / 4)].name : '第 ' + (st.lo + 1) + ' 节');
+    put('rDiff', (st.diff * 1000).toFixed(0) + ' mV');
+    if (st.min < 2.9) warns.push('有电芯电压偏低（' + st.min.toFixed(2) + ' V），请尽快停车充电');
+  }
+  if (s.temps && s.temps.length) {
+    const tMax = Math.max(...s.temps);
+    put('rTemp', tMax.toFixed(0) + ' °C');
+    if (tMax >= 55) warns.push('电池温度偏高（' + tMax.toFixed(0) + ' °C），请停车降温');
+  }
+  if (s.socPct !== undefined && s.socPct <= 15) warns.push('电量低于 15%，请尽快充电');
+  let usedWh = null;
+  if (sess && sess.n) {
+    const used = sess.ah0 - sess.ah1;
+    usedWh = used * (sess.vSum / sess.n);
+    put('rUsed', (used >= 0 ? '' : '+') + Math.abs(used).toFixed(2) + ' Ah');
+  } else put('rUsed', '--');
+  const km = ride.dist / 1000;
+  put('rDist', ride.watch === null ? '--' : km.toFixed(2) + ' km');
+  if (usedWh !== null && usedWh > 5 && km >= 0.3 && s.remainAh !== undefined) {
+    const eff = usedWh / km;
+    put('rEff', eff.toFixed(0));
+    put('rRange', (s.remainAh * s.totalV / eff).toFixed(0) + ' km');
+  } else { put('rEff', '--'); put('rRange', '--'); }
+  $('rWarn').textContent = warns.join('；');
+  $('rWarn').classList.toggle('show', warns.length > 0);
+}
+async function rideStart() {
+  if (!connected && !demoTimer) await connect();
+  if (!connected && !demoTimer) return;                     // 没选设备或没连上，connect 里已经提示过
+  ride.on = true; ride.dist = 0; ride.last = null; ride.speed = null;
+  sess = null;                                              // 这一趟从零开始统计
+  $('ride').hidden = false;
+  document.body.style.overflow = 'hidden';
+  keepAwake();
+  renderRide();
+}
+function rideStop() {
+  ride.on = false;
+  $('ride').hidden = true;
+  document.body.style.overflow = '';
+  gpsStop();
+  renderSess();
+}
+function gpsStop() {
+  if (ride.watch !== null && navigator.geolocation) navigator.geolocation.clearWatch(ride.watch);
+  ride.watch = null; ride.speed = null;
+  $('btnRideGps').textContent = '显示车速和里程';
+}
+function distanceM(a, b) {                                  // 两个经纬度之间的距离（米）
+  const rad = x => x * Math.PI / 180, R = 6371000;
+  const dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function onPosition(p) {
+  const c = p.coords;
+  if (c.accuracy > 40) return;                              // 定位太飘的点不要
+  const here = { lat: c.latitude, lon: c.longitude };
+  if (ride.last) {
+    const d = distanceM(ride.last, here), dt = (p.timestamp - ride.lastT) / 1000;
+    if (d >= 4 && dt > 0 && d / dt < 30) {                  // 挪动 4 米以上才算，超过 108 km/h 的跳点丢掉
+      ride.dist += d; ride.last = here; ride.lastT = p.timestamp;
+      if (c.speed === null || c.speed < 0) ride.speed = d / dt;
+    } else if (dt > 4) ride.speed = c.speed !== null && c.speed >= 0 ? c.speed : 0;
+  } else { ride.last = here; ride.lastT = p.timestamp; }
+  if (c.speed !== null && c.speed >= 0) ride.speed = c.speed;
+  renderRide();
+}
+function gpsToggle() {
+  if (ride.watch !== null) { gpsStop(); renderRide(); return; }
+  if (!navigator.geolocation) { $('rGpsNote').textContent = '这个浏览器不支持定位，车速和里程显示不了。'; return; }
+  ride.watch = navigator.geolocation.watchPosition(onPosition, e => {
+    gpsStop(); renderRide();
+    $('rGpsNote').textContent = '定位没有开成功（' + (e && e.message ? e.message : '未知原因') + '），车速和里程显示不了。其他数据不受影响。';
+  }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+  $('btnRideGps').textContent = '关闭车速和里程';
+  renderRide();
+}
+$('btnRide').onclick = rideStart;
+$('btnRideExit').onclick = rideStop;
+$('btnRideGps').onclick = gpsToggle;
 
 window.addEventListener('resize', () => drawChart(demoTimer ? demoHist : history));
 drawChart(history);
