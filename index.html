@@ -81,7 +81,7 @@ pre {
   font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; max-height: 260px; overflow: auto;
   white-space: pre-wrap; word-break: break-all;
 }
-input[type="text"], textarea {
+input[type="text"], input[type="password"], textarea {
   font: 13px ui-monospace, Menlo, Consolas, monospace; width: 100%; padding: 9px; border-radius: 8px;
   border: 1px solid var(--line); background: var(--bg); color: var(--text);
 }
@@ -92,7 +92,7 @@ textarea { height: 120px; margin-top: 8px; display: none; }
 <body>
 <main>
   <header>
-    <h1>电池监控 <small style="font-size:12px;font-weight:400;color:var(--muted)">第 7 版</small></h1>
+    <h1>电池监控 <small style="font-size:12px;font-weight:400;color:var(--muted)">第 8 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -101,6 +101,7 @@ textarea { height: 120px; margin-top: 8px; display: none; }
       <button class="primary" id="btnConnect">连接电池</button>
       <button id="btnDisconnect" disabled>断开</button>
       <button id="btnDemo">演示数据</button>
+      <button id="btnUpload">上传日志</button>
     </div>
     <label class="check"><input type="checkbox" id="chkAll"> 列表里找不到电池时，勾选这里显示所有蓝牙设备</label>
     <div class="banner" id="banner"></div>
@@ -195,6 +196,12 @@ textarea { height: 120px; margin-top: 8px; display: none; }
         <button id="btnShareLog">分享日志</button>
       </div>
       <textarea id="logBox" readonly></textarea>
+      <p class="note">上传设置：点最上面的"上传日志"，会把调试日志和压差记录传到你自己的 GitHub 私有仓库。密钥只保存在这台手机的浏览器里。</p>
+      <div class="send">
+        <input type="password" id="tokenIn" placeholder="粘贴 github_pat_ 开头的密钥" autocomplete="off">
+        <button id="btnSaveToken">保存</button>
+      </div>
+      <p class="note" id="tokenState"></p>
       <p class="note">还没认出含义的字节（研究用，方括号里是字节位置）：</p>
       <pre id="rawFields">（连接后显示）</pre>
       <p class="note">手动发送十六进制指令（只用于排查协议，写入类指令会被拦截）：</p>
@@ -235,7 +242,7 @@ function log(msg) {
   const t = new Date().toTimeString().slice(0, 8);
   const line = t + ' ' + msg;
   if (logHead.length < 120) logHead.push(line);
-  else { logTail.push(line); if (logTail.length > 200) logTail.shift(); }
+  else { logTail.push(line); if (logTail.length > 600) logTail.shift(); }
   if ($('dbg').open) renderLog();
 }
 function logText() {
@@ -697,6 +704,58 @@ async function copyText(text, boxId) {
 }
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
+// ---------- 上传日志到自己的 GitHub 私有仓库 ----------
+const PAGE_VERSION = '第 8 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
+function renderToken() {
+  $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
+}
+$('btnSaveToken').onclick = () => {
+  const v = $('tokenIn').value.trim();
+  try { if (v) localStorage.setItem(TOKEN_KEY, v); else localStorage.removeItem(TOKEN_KEY); }
+  catch (e) { banner('保存失败：这个浏览器不允许保存数据。'); return; }
+  $('tokenIn').value = '';
+  renderToken();
+};
+function b64utf8(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+async function uploadLog() {
+  const token = getToken();
+  if (!token) {
+    $('dbg').open = true; renderLog(); renderRaw();
+    banner('还没有设置上传密钥。请在最下面"调试日志"里的"上传设置"粘贴一次。');
+    $('tokenIn').scrollIntoView({ block: 'center' });
+    return;
+  }
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  const day = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  const name = day + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '.txt';
+  const text = ['页面版本：' + PAGE_VERSION, '上传时间：' + day + ' ' + d.toTimeString().slice(0, 8), '',
+    '=== 未识别字节 ===', $('rawFields').textContent, '', '=== 调试日志 ===', logText(), '', '=== 压差记录 ===', csvText()].join('\n');
+  $('btnUpload').disabled = true;
+  banner('正在上传…');
+  try {
+    const res = await fetch('https://api.github.com/repos/' + LOG_REPO + '/contents/logs/' + name, {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: '上传日志 ' + name, content: b64utf8(text) }),
+    });
+    if (res.ok) banner('已上传：' + name + '。跟 Claude 说一声"传了"就行。');
+    else if (res.status === 401) banner('上传失败：密钥不对或者已经过期，请重新设置。');
+    else if (res.status === 403 || res.status === 404) banner('上传失败：这个密钥没有日志仓库的写入权限（' + res.status + '）。');
+    else banner('上传失败：GitHub 返回了 ' + res.status + '。');
+  } catch (e) {
+    banner('上传失败：连不上 GitHub（' + errText(e) + '）。可以先用"分享日志"。');
+  }
+  $('btnUpload').disabled = false;
+}
+$('btnUpload').onclick = uploadLog;
+renderToken();
+
 $('btnShareLog').onclick = async () => {       // 调出手机的分享面板，直接发到微信、备忘录等
   if (!navigator.share) { copyText(logText(), 'logBox'); return; }
   try { await navigator.share({ title: '电池监控日志', text: logText() }); }
@@ -949,7 +1008,7 @@ async function connect() {
       : { filters: [{ services: [ADV_SERVICE] }], optionalServices };
     setStatus('选择设备…');
     device = await navigator.bluetooth.requestDevice(opts);
-    log('选中设备：' + (device.name || '(无名称)'));
+    log('选中设备：名称结尾 ' + (device.name ? device.name.slice(-4) : '(无名称)'));   // 不记完整编号
     if (!hooked.has(device)) { hooked.add(device); device.addEventListener('gattserverdisconnected', onDisconnected); }
     setStatus('连接中…');
     wantConnected = true;
