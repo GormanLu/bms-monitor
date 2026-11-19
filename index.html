@@ -92,7 +92,7 @@ textarea { height: 120px; margin-top: 8px; display: none; }
 <body>
 <main>
   <header>
-    <h1>电池监控 <small style="font-size:12px;font-weight:400;color:var(--muted)">第 6 版</small></h1>
+    <h1>电池监控 <small style="font-size:12px;font-weight:400;color:var(--muted)">第 7 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -104,6 +104,7 @@ textarea { height: 120px; margin-top: 8px; display: none; }
     </div>
     <label class="check"><input type="checkbox" id="chkAll"> 列表里找不到电池时，勾选这里显示所有蓝牙设备</label>
     <div class="banner" id="banner"></div>
+    <p class="note" id="awakeNote"></p>
   </section>
 
   <section class="card">
@@ -158,6 +159,13 @@ textarea { height: 120px; margin-top: 8px; display: none; }
     <p class="note" id="orderNote">橙色是最低的一节，绿色是最高的一节。组的编号由保护板决定，断电后可能变化。</p>
   </section>
 
+  <section class="card" id="cardIr" style="display:none">
+    <h2>内阻估算（骑车时才有）</h2>
+    <p class="note" id="irInfo" style="margin-top:0">需要最近 5 分钟里电流变化超过 3 A 才能算。现在数据还不够。</p>
+    <table id="irTable"></table>
+    <p class="note">算法：电流变化时，看每节电压跟着变了多少。数值里包含连接片和插头的电阻，适合用来比较各块之间的差别，不能当成电芯的标称内阻。</p>
+  </section>
+
   <section class="card">
     <h2>压差记录</h2>
     <canvas id="chart"></canvas>
@@ -184,8 +192,11 @@ textarea { height: 120px; margin-top: 8px; display: none; }
       <pre id="log">（还没有日志）</pre>
       <div class="row">
         <button id="btnCopyLog">复制日志</button>
+        <button id="btnShareLog">分享日志</button>
       </div>
       <textarea id="logBox" readonly></textarea>
+      <p class="note">还没认出含义的字节（研究用，方括号里是字节位置）：</p>
+      <pre id="rawFields">（连接后显示）</pre>
       <p class="note">手动发送十六进制指令（只用于排查协议，写入类指令会被拦截）：</p>
       <div class="send">
         <input type="text" id="hexIn" placeholder="例如 DD A5 03 00 FF FD 77" autocapitalize="characters" autocomplete="off">
@@ -235,7 +246,7 @@ function renderLog() {
   el.textContent = logText() || '（还没有日志）';
   el.scrollTop = el.scrollHeight;
 }
-$('dbg').addEventListener('toggle', renderLog);
+$('dbg').addEventListener('toggle', () => { renderLog(); renderRaw(); });
 
 function banner(msg) {
   const el = $('banner');
@@ -314,6 +325,7 @@ function showVendorMode(on) {
   $('cardVendor').style.display = on ? '' : 'none';
   $('cardSwitch').style.display = on ? 'none' : '';
   $('cardParams').style.display = on ? 'none' : '';
+  $('cardIr').style.display = on ? '' : 'none';
   $('orderNote').textContent = on
     ? '橙色是最低的一节，绿色是最高的一节。这里按模块编号固定排序，断电后顺序不会变，所以节号和小程序里的可能不一样。'
     : '橙色是最低的一节，绿色是最高的一节。组的编号由保护板决定，断电后可能变化。';
@@ -346,11 +358,59 @@ function handleVendor(f) {
       soc: f[13] / 2,
       temps: [f[17] - 40, f[18] - 40],
       nominalAh: u(39) / 100, remainAh: u(41) / 100,
+      raw: f,
     };
+    irPush(f[6], modules[f[6]].current, modules[f[6]].cells);
   } else if (f[4] === 0x02 && f.length >= 30) {
-    summary = { soc: f[21] / 2, totalV: u(22) / 10, current: (u(24) - 30000) / 100 };
+    summary = { soc: f[21] / 2, totalV: u(22) / 10, current: (u(24) - 30000) / 100, raw: f };
   } else return;
   applyVendor();
+}
+
+// 内阻估算：最近 5 分钟里，每节电压随电流变化的斜率（最小二乘），单位毫欧
+const irBuf = {};
+function irPush(id, i, cells) {
+  const b = irBuf[id] || (irBuf[id] = []);
+  const now = Date.now();
+  b.push({ t: now, i, cells });
+  while (b.length && now - b[0].t > 300000) b.shift();
+}
+function irEstimate(id) {
+  const b = irBuf[id];
+  if (!b || b.length < 8) return null;
+  const is = b.map(s => s.i);
+  if (Math.max(...is) - Math.min(...is) < 3) return null;
+  const n = b.length, mi = is.reduce((a, c) => a + c, 0) / n;
+  const sxx = is.reduce((a, c) => a + (c - mi) ** 2, 0);
+  return b[0].cells.map((_, k) => {
+    const mv = b.reduce((a, s) => a + s.cells[k], 0) / n;
+    const sxy = b.reduce((a, s) => a + (s.i - mi) * (s.cells[k] - mv), 0);
+    return sxy / sxx * 1000;
+  });
+}
+function renderIr() {
+  if (!state.modules) return;
+  const rows = state.modules.map(m => ({ m, r: irEstimate(m.id) })).filter(x => x.r);
+  if (!rows.length) {
+    $('irInfo').textContent = '需要最近 5 分钟里电流变化超过 3 A 才能算。现在数据还不够。';
+    $('irTable').innerHTML = '';
+    return;
+  }
+  for (const x of rows) x.avg = x.r.reduce((a, c) => a + c, 0) / x.r.length;
+  const worst = rows.length > 1 ? rows.reduce((a, c) => (c.avg > a.avg ? c : a)) : null;
+  $('irInfo').textContent = worst ? '内阻最大的一块是模块 ' + worst.m.name + '。' : '';
+  $('irTable').innerHTML = '<tr><td>模块</td><td>每节平均</td></tr>' + rows.map(x =>
+    '<tr><td>模块 ' + x.m.name + (x === worst ? '（最大）' : '') + '<br><span style="color:var(--muted);font-size:12px">各节：' +
+    x.r.map(v => v.toFixed(2)).join(' / ') + '</span></td><td>' + x.avg.toFixed(2) + ' mΩ</td></tr>').join('');
+}
+// 调试用：把还没认出含义的字节列出来，方便在不同状态下对比
+function renderRaw() {
+  if (!$('dbg').open || !state.modules) return;
+  const pick = (f, a, b) => '[' + a + (b > a ? '-' + b : '') + ']=' + hex(f.slice(a, b + 1));
+  const lines = state.modules.map(m => '模块 ' + m.name + '  ' +
+    [[5, 5], [14, 15], [21, 25], [34, 38], [43, 46], [47, 54]].map(([a, b]) => pick(m.raw, a, b)).join('  '));
+  if (summary) lines.push('汇总  ' + [[5, 13], [18, 20], [26, 29]].map(([a, b]) => pick(summary.raw, a, b)).join('  '));
+  $('rawFields').textContent = lines.join('\n');
 }
 function applyVendor() {
   const now = Date.now(), avg = a => a.reduce((x, y) => x + y, 0) / a.length;
@@ -374,6 +434,8 @@ function applyVendor() {
   s.protect = 0;
   if (s.complete) recordSample();
   render();
+  renderIr();
+  renderRaw();
 }
 function parseRx() {
   while (rx.length) {
@@ -446,7 +508,12 @@ function render() {
   if (s.totalV !== undefined) {
     const or = (v, f) => (v === undefined || v === null ? '--' : f(v));
     $('soc').textContent = s.socPct.toFixed(1) + '%';
-    $('socSub').textContent = '剩余 ' + s.remainAh.toFixed(1) + ' / ' + s.nominalAh.toFixed(1) + ' Ah' + (s.modules ? '（各块平均）' : '');
+    if (s.modules) {
+      const socs = s.modules.map(m => m.soc);
+      $('socSub').textContent = '整组汇总值。各块自己算的是 ' + Math.min(...socs).toFixed(1) + '%～' + Math.max(...socs).toFixed(1) + '%';
+    } else {
+      $('socSub').textContent = '剩余 ' + s.remainAh.toFixed(1) + ' / ' + s.nominalAh.toFixed(1) + ' Ah';
+    }
     $('totalV').textContent = s.totalV.toFixed(s.modules ? 2 : 1) + ' V';
     $('current').textContent = s.current.toFixed(2) + ' A';
     $('cycles').textContent = or(s.cycles, v => v);
@@ -568,10 +635,11 @@ function drawChart(samples) {
   g.scale(dpr, dpr);
   const css = getComputedStyle(document.documentElement);
   const cLine = css.getPropertyValue('--line'), cMuted = css.getPropertyValue('--muted');
-  const cAccent = css.getPropertyValue('--accent'), cLow = css.getPropertyValue('--low');
+  const cAccent = css.getPropertyValue('--accent'), cLow = css.getPropertyValue('--low'), cHigh = css.getPropertyValue('--high');
   const L = 34, R = 8, T = 10, B = 22;
   const data = samples.slice(-300);
-  const top = Math.max(40, ...data.map(p => p.d)) * 1.15;
+  const hasGap = p => typeof p.bg === 'number';
+  const top = Math.max(40, ...data.map(p => p.d), ...data.filter(hasGap).map(p => p.bg)) * 1.15;
   const y = v => T + (h - T - B) * (1 - v / top);
   const x = i => L + (w - L - R) * (data.length > 1 ? i / (data.length - 1) : 0.5);
   g.font = '11px sans-serif'; g.textBaseline = 'middle';
@@ -594,11 +662,22 @@ function drawChart(samples) {
   data.forEach((p, i) => (i ? g.lineTo(x(i), y(p.d)) : g.moveTo(x(i), y(p.d))));
   g.stroke();
   if (data.length === 1) { g.fillStyle = cAccent; g.beginPath(); g.arc(x(0), y(data[0].d), 3, 0, 7); g.fill(); }
+  if (data.some(hasGap)) {                      // 绿线：最低那一块平均每节比其他块低多少
+    g.strokeStyle = cHigh; g.beginPath();
+    let pen = false;
+    data.forEach((p, i) => {
+      if (!hasGap(p)) { pen = false; return; }
+      if (pen) g.lineTo(x(i), y(p.bg)); else g.moveTo(x(i), y(p.bg));
+      pen = true;
+    });
+    g.stroke();
+  }
   const fmt = t => new Date(t).toTimeString().slice(0, 5);
   g.fillStyle = cMuted; g.textBaseline = 'alphabetic';
   g.textAlign = 'left'; g.fillText(fmt(data[0].t), L, h - 5);
   g.textAlign = 'right'; g.fillText(fmt(data[data.length - 1].t), w - R, h - 5);
-  $('histInfo').textContent = '单位 mV，共 ' + samples.length + ' 条记录，图上显示最近 ' + data.length + ' 条。';
+  $('histInfo').textContent = '单位 mV。蓝线是整组压差' + (data.some(hasGap) ? '，绿线是最低那一块平均每节比其他块低多少' : '') +
+    '。共 ' + samples.length + ' 条记录，图上显示最近 ' + data.length + ' 条。';
 }
 function csvText() {
   const rows = ['时间,压差mV,最低V,最高V,电量%,电流A,总电压V,最低的一块,这一块平均每节低mV'];
@@ -618,6 +697,11 @@ async function copyText(text, boxId) {
 }
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
+$('btnShareLog').onclick = async () => {       // 调出手机的分享面板，直接发到微信、备忘录等
+  if (!navigator.share) { copyText(logText(), 'logBox'); return; }
+  try { await navigator.share({ title: '电池监控日志', text: logText() }); }
+  catch (e) { if (!e || e.name !== 'AbortError') copyText(logText(), 'logBox'); }
+};
 $('btnClear').onclick = () => {
   if (!confirm('确定清空所有压差记录吗？')) return;
   history = []; try { localStorage.removeItem(HIST_KEY); } catch (e) { /* 忽略 */ }
@@ -866,8 +950,26 @@ async function connect() {
     setStatus('选择设备…');
     device = await navigator.bluetooth.requestDevice(opts);
     log('选中设备：' + (device.name || '(无名称)'));
-    device.addEventListener('gattserverdisconnected', onDisconnected);
+    if (!hooked.has(device)) { hooked.add(device); device.addEventListener('gattserverdisconnected', onDisconnected); }
     setStatus('连接中…');
+    wantConnected = true;
+    await attach();
+  } catch (e) {
+    wantConnected = false;
+    const msg = errText(e);
+    log('连接出错：' + msg);
+    const cancelled = (e && e.name === 'NotFoundError') || /cancel|取消/i.test(msg);
+    banner(cancelled
+      ? '没有选中设备。默认只列出这一类电池，要在电池旁边才搜得到；想看附近所有蓝牙设备，请勾选上面的选项再点一次。'
+      : '连接失败：' + msg);
+    if (device && device.gatt && device.gatt.connected) device.gatt.disconnect();
+    connected = false; setStatus('未连接');
+  }
+}
+// 建立连接、订阅数据。第一次连接和断线重连都走这里。
+const hooked = new WeakSet();
+let wantConnected = false, reconnecting = false, wakeLock = null;
+async function attach() {
     const server = await device.gatt.connect();
     let svc, wId = CH_WRITE, nId = CH_NOTIFY, custom = true;
     try { svc = await server.getPrimaryService(SVC_CUSTOM); log('找到定制串口服务 00400001'); }
@@ -892,32 +994,57 @@ async function connect() {
     }
     connected = true; gotFrame = false; misses = 0; rx = [];
     setStatus('已连接', true);
+    keepAwake();
     log('先静听 2 秒，看保护板会不会自己上报数据');
     await sleep(2000);
-    if (protocol !== 'vendor') pollLoop();
-  } catch (e) {
-    const msg = errText(e);
-    log('连接出错：' + msg);
-    const cancelled = (e && e.name === 'NotFoundError') || /cancel|取消/i.test(msg);
-    banner(cancelled
-      ? '没有选中设备。默认只列出这一类电池，要在电池旁边才搜得到；想看附近所有蓝牙设备，请勾选上面的选项再点一次。'
-      : '连接失败：' + msg);
-    if (device && device.gatt && device.gatt.connected) device.gatt.disconnect();
-    connected = false; setStatus('未连接');
-  }
+    if (connected && protocol !== 'vendor') pollLoop();
 }
 function onDisconnected() {
   if (!connected) return;
   connected = false; chWrite = chNotify = null;
   log('连接已断开');
-  setStatus('已断开');
+  if (wantConnected) reconnect(); else setStatus('已断开');
+}
+async function reconnect() {
+  if (reconnecting) return;
+  reconnecting = true;
+  for (let i = 1; i <= 10 && wantConnected && !connected; i++) {
+    setStatus('断线了，正在重连（第 ' + i + ' 次）…');
+    await sleep(3000);
+    if (!wantConnected) break;
+    try { await attach(); log('重连成功'); } catch (e) { log('重连失败：' + errText(e)); }
+  }
+  reconnecting = false;
+  if (!connected) {
+    if (wantConnected) banner('连接断开了，自动重连没有成功。请走近电池后再点"连接电池"。');
+    wantConnected = false; releaseAwake(); setStatus('已断开');
+  }
 }
 function disconnect() {
+  wantConnected = false;
   stopDemo();
   if (device && device.gatt && device.gatt.connected) device.gatt.disconnect();
   connected = false;
+  releaseAwake();
   setStatus('未连接');
 }
+// 连接期间尽量让屏幕保持常亮，锁屏后浏览器会断开蓝牙
+async function keepAwake() {
+  if (!navigator.wakeLock) { $('awakeNote').textContent = '这个浏览器不能让屏幕保持常亮。要长时间记录时，请先把手机的自动锁屏关掉。'; return; }
+  if (wakeLock) return;
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+    $('awakeNote').textContent = '连接期间屏幕会保持常亮。';
+  } catch (e) { $('awakeNote').textContent = '屏幕常亮没有开成功。要长时间记录时，请先把手机的自动锁屏关掉。'; }
+}
+function releaseAwake() {
+  try { if (wakeLock) wakeLock.release(); } catch (e) { /* 忽略 */ }
+  wakeLock = null; $('awakeNote').textContent = '';
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && wantConnected) keepAwake();
+});
 $('btnConnect').onclick = connect;
 $('btnDisconnect').onclick = disconnect;
 
