@@ -87,6 +87,7 @@ pre {
   font: 11px/1.45 ui-monospace, Menlo, Consolas, monospace; max-height: 260px; overflow: auto;
   white-space: pre-wrap; word-break: break-all;
 }
+select { font: inherit; width: 100%; padding: 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-height: 40px; }
 input[type="text"], input[type="password"], textarea {
   font: 13px ui-monospace, Menlo, Consolas, monospace; width: 100%; padding: 9px; border-radius: 8px;
   border: 1px solid var(--line); background: var(--bg); color: var(--text);
@@ -98,7 +99,7 @@ textarea { height: 120px; margin-top: 8px; display: none; }
 <body>
 <main>
   <header>
-    <h1>电池监控 <small style="font-size:12px;font-weight:400;color:var(--muted)">第 9 版</small></h1>
+    <h1>电池监控 <small style="font-size:12px;font-weight:400;color:var(--muted)">第 10 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -166,6 +167,12 @@ textarea { height: 120px; margin-top: 8px; display: none; }
     <p class="note" id="orderNote">橙色是最低的一节，绿色是最高的一节。组的编号由保护板决定，断电后可能变化。</p>
   </section>
 
+  <section class="card" id="cardSess" style="display:none">
+    <h2>本次统计（从连接开始）</h2>
+    <table id="sessTable"></table>
+    <div class="row" style="margin-top:8px"><button id="btnSessReset">重新开始统计</button></div>
+  </section>
+
   <section class="card" id="cardIr" style="display:none">
     <h2>内阻估算（骑车时才有）</h2>
     <p class="note" id="irInfo" style="margin-top:0">需要最近 5 分钟里电流变化超过 3 A 才能算。现在数据还不够。</p>
@@ -191,6 +198,29 @@ textarea { height: 120px; margin-top: 8px; display: none; }
     <div id="funcs" style="margin-top:10px"></div>
     <table id="params"></table>
     <p class="note">功能开关可以切换，改完会自动读回来核对。保护电压、电流、温度这些数值只显示，不能在这里修改。</p>
+  </section>
+
+  <section class="card">
+    <h2>快照（记下这一刻）</h2>
+    <p class="note" style="margin-top:0">选好当时的状态再记。同一种状态、差不多的电量下攒几条，就能看出最低那一块的差距有没有变大。</p>
+    <div class="send">
+      <select id="snapNote">
+        <option>刚停车</option>
+        <option>静置半小时以上</option>
+        <option>静置几小时</option>
+        <option>放了一夜</option>
+        <option>充电中</option>
+        <option>刚充满</option>
+        <option>骑行中</option>
+      </select>
+      <button class="primary" id="btnSnap">记一条</button>
+    </div>
+    <table id="snapTable"></table>
+    <div class="row" style="margin-top:8px">
+      <button id="btnSnapCopy">复制快照</button>
+      <button id="btnSnapUndo">删掉最新一条</button>
+    </div>
+    <textarea id="snapBox" readonly></textarea>
   </section>
 
   <section class="card">
@@ -347,7 +377,7 @@ function crcModbus(bytes) {
   return crc;
 }
 function resetVendor() {
-  protocol = null; vx = []; modules = {}; summary = null;
+  protocol = null; vx = []; modules = {}; summary = null; sess = null;
   state.modules = undefined;
   showVendorMode(false);
 }
@@ -356,6 +386,7 @@ function showVendorMode(on) {
   $('cardSwitch').style.display = on ? 'none' : '';
   $('cardParams').style.display = on ? 'none' : '';
   $('cardIr').style.display = on ? '' : 'none';
+  $('cardSess').style.display = on ? '' : 'none';
   $('orderNote').textContent = on
     ? '橙色是最低的一节，绿色是最高的一节。这里按模块编号固定排序，断电后顺序不会变，所以节号和小程序里的可能不一样。'
     : '橙色是最低的一节，绿色是最高的一节。组的编号由保护板决定，断电后可能变化。';
@@ -463,11 +494,81 @@ function applyVendor() {
   s.cellCount = s.cells.length;
   s.fet = s.cycles = s.prodDate = s.swVer = s.balance = undefined;
   s.protect = 0;
-  if (s.complete) recordSample();
+  if (s.complete) { recordSample(); sessUpdate(); }
   render();
   renderIr();
   renderRaw();
+  renderSess();
 }
+
+// 本次统计：从连上主模块、收齐数据开始累计，重连不清零
+let sess = null;
+function sessUpdate() {
+  const s = state, st = cellStats(s.cells), now = Date.now();
+  if (!sess) sess = { t0: now, ah0: s.remainAh, minI: 0, maxI: 0, maxP: 0, minV: 99, minName: '', maxDiff: 0, maxT: -99, vSum: 0, n: 0 };
+  const currents = s.modules.map(m => m.current).concat(summary ? [summary.current] : []);
+  sess.minI = Math.min(sess.minI, ...currents);
+  sess.maxI = Math.max(sess.maxI, ...currents);
+  sess.maxP = Math.max(sess.maxP, ...currents.map(i => Math.abs(i * s.totalV)));
+  if (st.min < sess.minV) { sess.minV = st.min; sess.minName = s.modules[Math.floor(st.lo / 4)].name; }
+  sess.maxDiff = Math.max(sess.maxDiff, st.diff);
+  sess.maxT = Math.max(sess.maxT, s.temps[1]);
+  sess.vSum += s.totalV; sess.n++;
+  sess.t1 = now; sess.ah1 = s.remainAh;
+}
+function renderSess() {
+  if (!sess) { $('sessTable').innerHTML = '<tr><td>收齐全部数据后开始统计</td><td></td></tr>'; return; }
+  const mins = Math.round((sess.t1 - sess.t0) / 60000), used = sess.ah0 - sess.ah1, vAvg = sess.vSum / sess.n;
+  const rows = [
+    ['已统计', mins >= 60 ? Math.floor(mins / 60) + ' 小时 ' + (mins % 60) + ' 分' : mins + ' 分钟'],
+    [used >= 0 ? '用掉的电量' : '充进的电量', Math.abs(used).toFixed(2) + ' Ah（约 ' + Math.abs(used * vAvg).toFixed(0) + ' Wh）'],
+    ['最大放电电流', (-sess.minI).toFixed(1) + ' A'],
+    ['最大充电电流', sess.maxI.toFixed(1) + ' A'],
+    ['最大功率', sess.maxP.toFixed(0) + ' W'],
+    ['最低单体电压', sess.minV.toFixed(3) + ' V（' + sess.minName + '）'],
+    ['最大压差', (sess.maxDiff * 1000).toFixed(0) + ' mV'],
+    ['最高温度', sess.maxT + ' °C'],
+  ];
+  $('sessTable').innerHTML = rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
+}
+$('btnSessReset').onclick = () => { sess = null; renderSess(); toast('已重新开始统计。'); };
+
+// 快照：手动记下一刻的关键数字，带上当时的状态说明
+const SNAP_KEY = 'bms-snaps-v1';
+let snaps = [];
+try { snaps = JSON.parse(localStorage.getItem(SNAP_KEY) || '[]'); } catch (e) { snaps = []; }
+function saveSnaps() { try { localStorage.setItem(SNAP_KEY, JSON.stringify(snaps)); } catch (e) { /* 存不下就只留在内存里 */ } }
+function stamp(t) {
+  const d = new Date(t), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + d.toTimeString().slice(0, 5);
+}
+function renderSnaps() {
+  if (!snaps.length) { $('snapTable').innerHTML = '<tr><td>还没有快照</td><td></td></tr>'; return; }
+  $('snapTable').innerHTML = snaps.slice(-20).reverse().map(s =>
+    '<tr><td>' + stamp(s.t).slice(5) + ' · ' + s.note + '<br><span style="color:var(--muted);font-size:12px">电量 ' + s.soc +
+    '% · 电流 ' + s.i.toFixed(1) + ' A · ' + (s.bn ? s.bn + '低 ' + s.bg + ' mV' : '') + '</span></td><td>压差 ' + s.d + ' mV</td></tr>').join('');
+}
+function snapCsv() {
+  return ['时间,状态,电量%,压差mV,最低的一块,这一块平均每节低mV,电流A,最低V,最高V,温度'].concat(
+    snaps.map(s => [stamp(s.t), s.note, s.soc, s.d, s.bn, s.bg, s.i, s.lo, s.hi, s.temp].join(','))).join('\n');
+}
+$('btnSnap').onclick = () => {
+  if (!state.modules || !state.complete) { banner('要先连上主模块（名称结尾 01）、收齐全部 20 节数据，才能记快照。'); return; }
+  const st = cellStats(state.cells), blk = blockGroups(state.cells);
+  snaps.push({
+    t: Date.now(), note: $('snapNote').value, soc: +state.socPct.toFixed(1), d: Math.round(st.diff * 1000),
+    bn: blk.lowest ? blk.lowest.name : '', bg: blk.lowest ? Math.round(blk.gap * 1000) : '',
+    i: state.current, lo: st.min, hi: st.max, temp: state.temps.join('~'),
+  });
+  if (snaps.length > 500) snaps = snaps.slice(-500);
+  saveSnaps(); renderSnaps();
+  toast('已记下一条：压差 ' + snaps[snaps.length - 1].d + ' mV。');
+};
+$('btnSnapUndo').onclick = () => {
+  if (!snaps.length) return;
+  snaps.pop(); saveSnaps(); renderSnaps(); toast('已删掉最新一条。');
+};
+$('btnSnapCopy').onclick = () => copyText(snapCsv(), 'snapBox');
 function parseRx() {
   while (rx.length) {
     const s = rx.indexOf(0xDD);
@@ -733,7 +834,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 9 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 10 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -763,7 +864,7 @@ async function uploadLog() {
   const day = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
   const name = day + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '.txt';
   const text = ['页面版本：' + PAGE_VERSION, '上传时间：' + day + ' ' + d.toTimeString().slice(0, 8), '',
-    '=== 未识别字节 ===', $('rawFields').textContent, '', '=== 调试日志 ===', logText(), '', '=== 压差记录 ===', csvText()].join('\n');
+    '=== 未识别字节 ===', $('rawFields').textContent, '', '=== 调试日志 ===', logText(), '', '=== 快照 ===', snapCsv(), '', '=== 压差记录 ===', csvText()].join('\n');
   $('btnUpload').disabled = $('btnUpload2').disabled = true;
   banner('正在上传…');
   try {
@@ -1183,6 +1284,7 @@ $('btnDemo').onclick = startDemo;
 
 window.addEventListener('resize', () => drawChart(demoTimer ? demoHist : history));
 drawChart(history);
+renderSnaps();
 if (!navigator.bluetooth) banner('这个浏览器不支持网页蓝牙。iPhone 请用 Bluefy 打开本页；安卓或电脑请用 Chrome。');
 </script>
 </body>
