@@ -92,7 +92,7 @@ textarea { height: 120px; margin-top: 8px; display: none; }
 <body>
 <main>
   <header>
-    <h1>电池监控</h1>
+    <h1>电池监控 <small style="font-size:12px;font-weight:400;color:var(--muted)">第 6 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -334,6 +334,7 @@ function handleVendor(f) {
     protocol = 'vendor';
     log('识别为厂家自定格式：只接收数据，不再发送指令');
     showVendorMode(true);
+    if (connected) setStatus('已连接 · 正在收数据', true);
   }
   if (!gotFrame) { gotFrame = true; banner(''); }
   if (f[4] === 0x01 && f.length >= 47) {
