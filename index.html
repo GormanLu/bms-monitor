@@ -99,7 +99,7 @@ textarea { height: 120px; margin-top: 8px; display: none; }
 <body>
 <main>
   <header>
-    <h1>电池监控 <small style="font-size:12px;font-weight:400;color:var(--muted)">第 10 版</small></h1>
+    <h1>电池监控 <small style="font-size:12px;font-weight:400;color:var(--muted)">第 11 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -113,6 +113,30 @@ textarea { height: 120px; margin-top: 8px; display: none; }
     <label class="check"><input type="checkbox" id="chkAll"> 列表里找不到电池时，勾选这里显示所有蓝牙设备</label>
     <div class="banner" id="banner"></div>
     <p class="note" id="awakeNote"></p>
+  </section>
+
+  <section class="card">
+    <h2>每日打卡（半分钟）</h2>
+    <p class="note" style="margin-top:0">选好电池现在的状态，点"一键打卡"：自动连接、等数据收齐、记一条快照并上传。弹出列表时选名称结尾 01 的那一块。</p>
+    <div class="send">
+      <select id="snapNote">
+        <option>放了一夜</option>
+        <option>静置几小时</option>
+        <option>静置半小时以上</option>
+        <option>刚停车</option>
+        <option>充电中</option>
+        <option>刚充满</option>
+        <option>骑行中</option>
+      </select>
+      <button class="primary" id="btnCheckIn">一键打卡</button>
+    </div>
+    <table id="snapTable"></table>
+    <div class="row" style="margin-top:8px">
+      <button id="btnSnap">只记一条</button>
+      <button id="btnSnapCopy">复制快照</button>
+      <button id="btnSnapUndo">删掉最新一条</button>
+    </div>
+    <textarea id="snapBox" readonly></textarea>
   </section>
 
   <section class="card">
@@ -198,29 +222,6 @@ textarea { height: 120px; margin-top: 8px; display: none; }
     <div id="funcs" style="margin-top:10px"></div>
     <table id="params"></table>
     <p class="note">功能开关可以切换，改完会自动读回来核对。保护电压、电流、温度这些数值只显示，不能在这里修改。</p>
-  </section>
-
-  <section class="card">
-    <h2>快照（记下这一刻）</h2>
-    <p class="note" style="margin-top:0">选好当时的状态再记。同一种状态、差不多的电量下攒几条，就能看出最低那一块的差距有没有变大。</p>
-    <div class="send">
-      <select id="snapNote">
-        <option>刚停车</option>
-        <option>静置半小时以上</option>
-        <option>静置几小时</option>
-        <option>放了一夜</option>
-        <option>充电中</option>
-        <option>刚充满</option>
-        <option>骑行中</option>
-      </select>
-      <button class="primary" id="btnSnap">记一条</button>
-    </div>
-    <table id="snapTable"></table>
-    <div class="row" style="margin-top:8px">
-      <button id="btnSnapCopy">复制快照</button>
-      <button id="btnSnapUndo">删掉最新一条</button>
-    </div>
-    <textarea id="snapBox" readonly></textarea>
   </section>
 
   <section class="card">
@@ -544,7 +545,7 @@ function stamp(t) {
 }
 function renderSnaps() {
   if (!snaps.length) { $('snapTable').innerHTML = '<tr><td>还没有快照</td><td></td></tr>'; return; }
-  $('snapTable').innerHTML = snaps.slice(-20).reverse().map(s =>
+  $('snapTable').innerHTML = snaps.slice(-5).reverse().map(s =>
     '<tr><td>' + stamp(s.t).slice(5) + ' · ' + s.note + '<br><span style="color:var(--muted);font-size:12px">电量 ' + s.soc +
     '% · 电流 ' + s.i.toFixed(1) + ' A · ' + (s.bn ? s.bn + '低 ' + s.bg + ' mV' : '') + '</span></td><td>压差 ' + s.d + ' mV</td></tr>').join('');
 }
@@ -552,18 +553,49 @@ function snapCsv() {
   return ['时间,状态,电量%,压差mV,最低的一块,这一块平均每节低mV,电流A,最低V,最高V,温度'].concat(
     snaps.map(s => [stamp(s.t), s.note, s.soc, s.d, s.bn, s.bg, s.i, s.lo, s.hi, s.temp].join(','))).join('\n');
 }
-$('btnSnap').onclick = () => {
-  if (!state.modules || !state.complete) { banner('要先连上主模块（名称结尾 01）、收齐全部 20 节数据，才能记快照。'); return; }
+const NOTE_KEY = 'bms-snap-note';             // 记住上次选的状态，每天打卡不用重选
+try { const n = localStorage.getItem(NOTE_KEY); if (n) $('snapNote').value = n; } catch (e) { /* 忽略 */ }
+$('snapNote').onchange = () => { try { localStorage.setItem(NOTE_KEY, $('snapNote').value); } catch (e) { /* 忽略 */ } };
+const dataReady = () => !!(state.modules && state.complete && (connected || demoTimer));
+function takeSnapshot() {
   const st = cellStats(state.cells), blk = blockGroups(state.cells);
-  snaps.push({
+  const snap = {
     t: Date.now(), note: $('snapNote').value, soc: +state.socPct.toFixed(1), d: Math.round(st.diff * 1000),
     bn: blk.lowest ? blk.lowest.name : '', bg: blk.lowest ? Math.round(blk.gap * 1000) : '',
     i: state.current, lo: st.min, hi: st.max, temp: state.temps.join('~'),
-  });
+  };
+  snaps.push(snap);
   if (snaps.length > 500) snaps = snaps.slice(-500);
   saveSnaps(); renderSnaps();
-  toast('已记下一条：压差 ' + snaps[snaps.length - 1].d + ' mV。');
+  return snap;
+}
+$('btnSnap').onclick = () => {
+  if (!dataReady()) { banner('要先连上主模块（名称结尾 01）、收齐全部 20 节数据，才能记快照。'); return; }
+  toast('已记下一条：压差 ' + takeSnapshot().d + ' mV。');
 };
+// 一键打卡：连接 → 等数据收齐 → 记一条 → 上传
+async function checkIn() {
+  $('btnCheckIn').disabled = true;
+  try {
+    if (!connected) await connect();
+    if (!connected) return;                    // 没选设备或连接失败，connect 里已经提示过
+    toast('已连接，正在等 20 节数据收齐…');
+    const t0 = Date.now();
+    while (connected && !dataReady() && Date.now() - t0 < 30000) await sleep(500);
+    if (!dataReady()) {
+      banner(state.modules && state.modules.length === 1 && state.modules[0].id === 0x40
+        ? '你连的是单独一块电池，没有记录。请点"断开"，再打卡一次，选名称结尾 01 的那一块。'
+        : '30 秒内没有收齐 20 节数据，没有记录。请靠近电池再试一次。');
+      return;
+    }
+    const snap = takeSnapshot();
+    const summaryText = '已记下：压差 ' + snap.d + ' mV' + (snap.bn ? '，' + snap.bn + '低 ' + snap.bg + ' mV' : '') + '。';
+    if (!getToken()) { banner(summaryText + '还没有保存上传密钥，所以没有上传。'); return; }
+    const ok = await uploadLog();
+    banner(summaryText + (ok ? '已上传。' : '但上传没有成功，可以稍后再点"上传日志"。'));
+  } finally { $('btnCheckIn').disabled = false; }
+}
+$('btnCheckIn').onclick = checkIn;
 $('btnSnapUndo').onclick = () => {
   if (!snaps.length) return;
   snaps.pop(); saveSnaps(); renderSnaps(); toast('已删掉最新一条。');
@@ -834,7 +866,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 10 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 11 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -858,8 +890,9 @@ async function uploadLog() {
   if (!token) {
     banner('还没有保存上传密钥。请在"上传日志给 Claude"那一块粘贴密钥，点"保存密钥"。');
     $('tokenIn').scrollIntoView({ block: 'center' });
-    return;
+    return false;
   }
+  let ok = false;
   const d = new Date(), p = n => String(n).padStart(2, '0');
   const day = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
   const name = day + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '.txt';
@@ -873,6 +906,7 @@ async function uploadLog() {
       headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: '上传日志 ' + name, content: b64utf8(text) }),
     });
+    ok = res.ok;
     if (res.ok) banner('已上传：' + name + '。跟 Claude 说一声"传了"就行。');
     else if (res.status === 401) banner('上传失败：密钥不对或者已经过期，请重新设置。');
     else if (res.status === 403 || res.status === 404) banner('上传失败：这个密钥没有日志仓库的写入权限（' + res.status + '）。');
@@ -881,6 +915,7 @@ async function uploadLog() {
     banner('上传失败：连不上 GitHub（' + errText(e) + '）。可以先用"分享日志"。');
   }
   $('btnUpload').disabled = $('btnUpload2').disabled = false;
+  return ok;
 }
 $('btnUpload').onclick = $('btnUpload2').onclick = uploadLog;
 renderToken();
