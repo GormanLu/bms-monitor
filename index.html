@@ -59,12 +59,18 @@ label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; col
 .hero .soc { display: flex; align-items: baseline; gap: 10px; }
 .hero .soc b { font-size: 54px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
 .hero .soc span { font-size: 12px; opacity: .8; }
-.soc-blocks { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 0 0 14px; }
+/* 各块一览：每一列是一块电池，三行分别是电量、块内压差、温度 */
+.soc-blocks { display: grid; gap: 3px 4px; align-items: baseline; margin: 0 0 14px; padding: 8px 10px 9px; border-radius: 12px; background: rgba(255, 255, 255, .12); font-variant-numeric: tabular-nums; }
 .soc-blocks:empty { display: none; }
-.soc-blocks div { background: rgba(255, 255, 255, .13); border-radius: 9px; padding: 5px 0 6px; text-align: center; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.soc-blocks small { display: block; font-size: 10px; font-weight: 400; opacity: .75; }
-.ride .soc-blocks { margin: 0; }
-.ride .soc-blocks div { background: #0f151d; border: 1px solid #1c2633; color: #c8d2de; font-size: 16px; }
+.soc-blocks span { text-align: center; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.soc-blocks .h, .soc-blocks .l { font-size: 11px; font-weight: 400; opacity: .75; }
+.soc-blocks .l { text-align: left; padding-right: 4px; }
+.soc-blocks .low { color: #ffd591; }
+.soc-blocks .f { grid-column: 1 / -1; text-align: left; font-size: 11px; font-weight: 400; opacity: .7; white-space: normal; margin-top: 2px; }
+.ride .soc-blocks { margin: 0; background: #0f151d; border: 1px solid #1c2633; color: #c8d2de; }
+.ride .soc-blocks span { font-size: 15px; }
+.ride .soc-blocks .h, .ride .soc-blocks .l { font-size: 12px; }
+.ride .soc-blocks .low { color: #f59e0b; }
 .socbar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .22); margin: 12px 0 14px; overflow: hidden; }
 .socbar i { display: block; height: 100%; width: 0; border-radius: 99px; background: #fff; transition: width .4s; }
 .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -177,7 +183,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 19 版</small></h1>
+    <h1>电池监控<small>第 20 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -188,7 +194,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
       <div class="socbar"><i id="socBar"></i></div>
       <div class="soc-blocks" id="socBlocks"></div>
       <div class="trio">
-        <div><small id="diffLbl">压差</small><b id="diff">--</b></div>
+        <div><small id="diffLbl">整组压差</small><b id="diff">--</b></div>
         <div><small>电流</small><b id="current">--</b></div>
         <div><small>总电压</small><b id="totalV">--</b></div>
       </div>
@@ -231,13 +237,13 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
         <div class="stat"><small id="maxLbl">最高单体</small><b id="maxV">--</b></div>
         <div class="stat"><small id="minLbl">最低单体</small><b id="minV">--</b></div>
         <div class="stat"><small>平均单体</small><b id="avgV">--</b></div>
-        <div class="stat"><small>剩余容量</small><b id="remainAh">--</b></div>
-        <div class="stat"><small>满电容量</small><b id="fullAh">--</b></div>
+        <div class="stat"><small id="remainLbl">剩余容量</small><b id="remainAh">--</b></div>
+        <div class="stat"><small id="fullLbl">满电容量</small><b id="fullAh">--</b></div>
         <div class="stat"><small>剩余能量（估算）</small><b id="energy">--</b></div>
         <div class="stat"><small>功率</small><b id="power">--</b></div>
         <div class="stat"><small id="etaLbl">预计时间</small><b id="eta">--</b></div>
         <div class="stat"><small id="tempLbl">温度</small><b id="temps">--</b></div>
-        <div class="stat"><small>保护板报的电量</small><b id="rsoc">--</b></div>
+        <div class="stat"><small id="rsocLbl">保护板报的电量</small><b id="rsoc">--</b></div>
         <div class="stat"><small>电池串数</small><b id="cellCount">--</b></div>
         <div class="stat"><small>循环次数</small><b id="cycles">--</b></div>
         <div class="stat"><small>充 / 放电开关</small><b id="fet">--</b></div>
@@ -266,9 +272,9 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 
     <section class="card" id="cardIr" style="display:none">
       <h2>内阻估算（骑车时才有）</h2>
-      <p class="note" id="irInfo" style="margin-top:0">需要最近 5 分钟里电流变化超过 3 A 才能算。现在数据还不够。</p>
+      <p class="note" id="irInfo" style="margin-top:0">还没有数据。需要先匀速骑上 10 秒以上（电流 8 A 以上、基本不变），并且前后 3 分钟内有停稳的时候。</p>
       <table id="irTable"></table>
-      <p class="note">算法：电流变化时，看每节电压跟着变了多少。数值里包含连接片和插头的电阻，适合用来比较各块之间的差别，不能当成电芯的标称内阻。</p>
+      <p class="note">内阻可以理解成电池内部的"阻力"：电流越大，被它吃掉的电压越多，所以一拧油门电压就往下掉。算法：匀速骑行时的电压，和前后 3 分钟内停稳时的电压相减，再除以电流。这样量出来的数包含连接片的电阻和电池短时间的"疲劳"，而且天越冷越大，所以会比电芯说明书上的内阻大。它只适合用来看五块之间有没有哪一块特别突出。</p>
     </section>
   </div>
 
@@ -393,8 +399,8 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
   <div class="ride-warn" id="rWarn"></div>
   <div class="ride-grid">
     <div><small>最低单体</small><b id="rMinV">--</b><em id="rMinName"></em></div>
-    <div><small id="rDiffLbl">压差</small><b id="rDiff">--</b></div>
-    <div><small>最高温度</small><b id="rTemp">--</b></div>
+    <div><small id="rDiffLbl">整组压差</small><b id="rDiff">--</b></div>
+    <div><small>温度（最低~最高）</small><b id="rTemp">--</b></div>
     <div><small>总电压</small><b id="rVolt">--</b></div>
     <div><small>本次用电</small><b id="rUsed">--</b></div>
     <div><small>里程</small><b id="rDist">--</b></div>
@@ -406,7 +412,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
       <button id="btnRidePip">开小窗</button>
     </div>
     <small id="rPipNote">小窗会浮在导航等其他应用上面。请在出发前、停着车的时候打开。</small>
-    <small id="rGpsNote">车速和里程用手机定位计算，只在这台手机上使用，不会上传。里程从进入骑行模式开始一直累计。骑车时请不要操作手机。</small>
+    <small id="rGpsNote">车速和里程用手机定位计算，里程从进入骑行模式开始一直累计。位置只留在这台手机上，不会上传；日志里只记定位信号好不好和平均车速，用来排查车速不准。骑车时请不要操作手机。</small>
   </div>
   <video id="pipVideo" muted playsinline></video>
 </div>
@@ -443,15 +449,15 @@ function log(msg) {
   const t = new Date().toTimeString().slice(0, 8);
   const line = t + ' ' + msg;
   if (logHead.length < 120) logHead.push(line);
-  else { logTail.push(line); if (logTail.length > 600) logTail.shift(); }
+  else { logTail.push(line); if (logTail.length > 3600) logTail.shift(); }
   if ($('dbg').open) renderLog();
 }
 function logText() {
   return logHead.concat(logTail.length ? ['……（中间省略）……'] : [], logTail).join('\n');
 }
-function renderLog() {
-  const el = $('log');
-  el.textContent = logText() || '（还没有日志）';
+function renderLog() {                         // 页面上只显示最近 300 行，免得卡；复制和上传用的是完整的
+  const el = $('log'), all = logHead.concat(logTail);
+  el.textContent = all.length ? (all.length > 300 ? '（这里只显示最近 300 行，复制和上传的是完整的）\n' : '') + all.slice(-300).join('\n') : '（还没有日志）';
   el.scrollTop = el.scrollHeight;
 }
 $('dbg').addEventListener('toggle', () => { renderLog(); renderRaw(); });
@@ -539,11 +545,14 @@ function crcModbus(bytes) {
 // 油门一变，各块等于是在不同电流下量的电压，这时拿它们相减得到的"压差"是假的（实测能到 0.16 V，
 // 最低的一块还会在几块之间乱跳）。用实际骑行数据试过"按电流折算"，折不准。
 // 可靠的办法只有一个：最近 10 秒里所有块报的电流都在 3 A 以内，才认为这一刻的压差是真的。
+// 另外还要看电压：很短的一下油门，电流那一栏有时没采到，电压却采到了（实测出现过 0.05 V 的假压差）。
+// 所以再要求每一块的电压和它自己上一次上报相比，变化不超过 12 mV（相当于 3 A 电流变化造成的电压变化）。
 // 按这个标准筛出来的数据里，最低的一块始终是同一块，压差也不再乱跳。
-const STEADY_MS = 10000, STEADY_AMP = 3;
-let curWin = [];
-function steadyPush(id, cur) {
-  const now = Date.now();
+const STEADY_MS = 10000, STEADY_AMP = 3, STEADY_MV = 12;
+let curWin = [], volLast = {};
+function steadyPush(id, cur, cells) {
+  const now = Date.now(), v = cells.reduce((a, b) => a + b, 0) / cells.length, p = volLast[id];
+  volLast[id] = { t: now, v, ok: !!p && now - p.t < 8000 && Math.abs(v - p.v) * 1000 <= STEADY_MV };
   curWin.push({ t: now, id, cur });
   while (curWin.length && now - curWin[0].t > STEADY_MS) curWin.shift();
 }
@@ -553,6 +562,7 @@ function steadyNow(ids) {
   const curs = curWin.map(x => x.cur), lo = Math.min(...curs), hi = Math.max(...curs);
   if (hi - lo > STEADY_AMP) return false;
   if (!ids.every(id => curWin.some(x => x.id === id))) return false;
+  if (!ids.every(id => volLast[id] && volLast[id].ok)) return false;
   const span = curWin[curWin.length - 1].t - curWin[0].t;
   return span >= 7000 || Math.max(Math.abs(lo), Math.abs(hi)) < 2;   // 刚连上还没攒够 10 秒时，只有停着不动才直接算数
 }
@@ -583,8 +593,10 @@ function rollGap(ids) {                                     // 返回估算压�
   return (Math.max(...all) - Math.min(...all)) * 1000;
 }
 function resetVendor() {
-  protocol = null; vx = []; modules = {}; summary = null; sess = null; curWin = []; rollHist = {}; rollEma = null;
+  protocol = null; vx = []; modules = {}; summary = null; sess = null; curWin = []; volLast = {}; rollHist = {}; rollEma = null;
+  irRest = []; irLoad = []; irCache = null;
   state.modules = undefined; state.hold = undefined; state.sync = undefined; state.est = undefined;
+  state.socFrom = undefined; state.meanAh = undefined;
   showVendorMode(false);
 }
 function showVendorMode(on) {
@@ -594,7 +606,8 @@ function showVendorMode(on) {
   $('cardIr').style.display = on ? '' : 'none';
   $('cardSess').style.display = on ? '' : 'none';
   $('orderNote').textContent = on
-    ? '橙色是最低的一节，绿色是最高的一节。这里按模块编号固定排序，断电后顺序不会变，所以节号和小程序里的可能不一样。'
+    ? '橙色是最低的一节，绿色是最高的一节。这里按模块编号固定排序，断电后顺序不会变，所以节号和小程序里的可能不一样。' +
+      '各块的电量是每块保护板自己数出来的，各块数得快慢差百分之几，所以互相差几个点属于计数误差，不代表真的差这么多。'
     : '橙色是最低的一节，绿色是最高的一节。组的编号由保护板决定，断电后可能变化。';
 }
 function parseVendor() {
@@ -617,62 +630,92 @@ function handleVendor(f) {
   }
   if (!gotFrame) { gotFrame = true; banner(''); }
   if (f[4] === 0x01 && f.length >= 47) {
+    const now = Date.now(), prev = modules[f[6]];
+    const cells = [u(26), u(28), u(30), u(32)].map(v => v / 1000), current = (u(11) - 30000) / 100;
+    const gapNow = Math.round((Math.max(...cells) - Math.min(...cells)) * 1000);
     modules[f[6]] = {
-      id: f[6], at: Date.now(),
+      id: f[6], at: now,
       // 编号 0x41 起是主模块给各块排的号，0x50 是主模块自己；直接连某一块时它报的是 0x40
       name: f[6] === 0x40 ? '这一块（直连）' : '模块 ' + (f[6] >= 0x41 && f[6] <= 0x5A ? String.fromCharCode(f[6]) : f[6].toString(16).toUpperCase()),
-      cells: [u(26), u(28), u(30), u(32)].map(v => v / 1000),
-      current: (u(11) - 30000) / 100,
+      cells, current,
+      // 块内压差（mV）：这一块自己的 4 节之间差多少。4 节是这块的保护板一起量的，骑车时也可信；
+      // 只有电流突变的那一下会多出十几毫伏，这时沿用上一次的数
+      gap: prev && now - prev.at < 8000 && Math.abs(current - prev.current) >= 5 ? prev.gap : gapNow,
       soc: f[13] / 2,
-      temps: [f[17] - 40, f[18] - 40],
+      temps: [f[17] - 40, f[18] - 40],                      // 每块两个测温点
       nominalAh: u(39) / 100, remainAh: u(41) / 100,
       raw: f,
     };
-    irPush(f[6], modules[f[6]].current, modules[f[6]].cells);
-    steadyPush(f[6], modules[f[6]].current);
-    rollPush(f[6], modules[f[6]].current, modules[f[6]].cells);
-    state.liveCurrent = modules[f[6]].current;     // 各块轮流上报，约每秒一次，比汇总数据更新得快
+    steadyPush(f[6], current, cells);
+    rollPush(f[6], current, cells);
+    state.liveCurrent = current;                            // 各块轮流上报，约每秒一次
   } else if (f[4] === 0x02 && f.length >= 30) {
+    // 汇总帧。用实际数据核对过两件事：
+    // ① 它的电流不是新量的，而是五块最新读数里绝对值最大的那个，所以不拿它当实时电流；
+    // ② 它的电量 = 最低块 ÷ (100 − (最高块 − 最低块))，也就是"最低的一块放空算 0%，最高的一块充满算 100%"。
     summary = { soc: f[21] / 2, totalV: u(22) / 10, current: (u(24) - 30000) / 100, raw: f };
-    state.liveCurrent = summary.current;
   } else return;
   applyVendor();
 }
 
-// 内阻估算：最近 5 分钟里，每节电压随电流变化的斜率（最小二乘），单位毫欧
-const irBuf = {};
-function irPush(id, i, cells) {
-  const b = irBuf[id] || (irBuf[id] = []);
-  const now = Date.now();
-  b.push({ t: now, i, cells });
-  while (b.length && now - b[0].t > 300000) b.shift();
+// ---------- 内阻估算 ----------
+// 以前用"电压对电流做回归"，不可靠：同一帧里的电压和电流不是同一刻量的，各块错开的时间还不一样，
+// 算出来"谁最大"主要反映的是这个时间差（用实际骑行数据对比过，两种算法排出来的名次不一样）。
+// 现在只用电流稳定时的读数：把"稳定带载"时每节的电压，和它前后 3 分钟内最近一次"稳定静止"时的电压相减，
+// 再除以两次的电流差。五块是在同样的条件下比的，所以块与块之间可以比；
+// 绝对数值包含连接片的电阻和电芯短时间的极化，而且越冷越大，不能当成说明书上的内阻。
+const IR_KEEP = 1800000, IR_PAIR = 180000, IR_MIN = 4;
+const IR_EMPTY = '还没有数据。需要先匀速骑上 10 秒以上（电流 8 A 以上、基本不变），并且前后 3 分钟内有停稳的时候。';
+let irRest = [], irLoad = [], irCache = null;
+function irSample() {                                       // 电流稳定、各块到齐时调用
+  if (!curWin.length) return;
+  const now = Date.now(), cur = curWin.reduce((a, x) => a + x.cur, 0) / curWin.length;
+  const list = Math.abs(cur) < 2 ? irRest : cur < -8 ? irLoad : null;
+  if (!list || (list.length && now - list[list.length - 1].t < 4000)) return;   // 每轮上报（约 5 秒）记一次
+  const cells = {};
+  for (const m of state.modules) cells[m.id] = m.cells.slice();
+  list.push({ t: now, cur, cells });
+  for (const a of [irRest, irLoad]) while (a.length && now - a[0].t > IR_KEEP) a.shift();
+  irCache = null;
 }
-function irEstimate(id) {
-  const b = irBuf[id];
-  if (!b || b.length < 8) return null;
-  const is = b.map(s => s.i);
-  if (Math.max(...is) - Math.min(...is) < 3) return null;
-  const n = b.length, mi = is.reduce((a, c) => a + c, 0) / n;
-  const sxx = is.reduce((a, c) => a + (c - mi) ** 2, 0);
-  return b[0].cells.map((_, k) => {
-    const mv = b.reduce((a, s) => a + s.cells[k], 0) / n;
-    const sxy = b.reduce((a, s) => a + (s.i - mi) * (s.cells[k] - mv), 0);
-    return sxy / sxx * 1000;
-  });
+function irEstimate() {                                     // { n: 配上对的组数, r: { 模块号: [每节毫欧] } }
+  if (irCache) return irCache;
+  const acc = {}, r = {};
+  const median = a => { const b = a.slice().sort((x, y) => x - y), h = b.length >> 1; return b.length % 2 ? b[h] : (b[h - 1] + b[h]) / 2; };
+  let n = 0;
+  for (const L of irLoad) {
+    let rest = null;
+    for (const x of irRest) if (!rest || Math.abs(x.t - L.t) < Math.abs(rest.t - L.t)) rest = x;
+    if (!rest || Math.abs(rest.t - L.t) > IR_PAIR) continue;
+    n++;
+    for (const id in L.cells) {
+      if (!rest.cells[id]) continue;
+      (acc[id] = acc[id] || []).push(L.cells[id].map((v, k) => (rest.cells[id][k] - v) / (rest.cur - L.cur) * 1000));
+    }
+  }
+  for (const id in acc) r[id] = acc[id][0].map((_, k) => median(acc[id].map(x => x[k])));
+  return (irCache = { n, r });
 }
 function renderIr() {
   if (!state.modules) return;
-  const rows = state.modules.map(m => ({ m, r: irEstimate(m.id) })).filter(x => x.r);
-  if (!rows.length) {
-    $('irInfo').textContent = '需要最近 5 分钟里电流变化超过 3 A 才能算。现在数据还不够。';
-    $('irTable').innerHTML = '';
-    return;
-  }
+  const est = irEstimate();
+  const rows = state.modules.map(m => ({ m, r: est.r[m.id] })).filter(x => x.r);
+  if (!rows.length) { $('irInfo').textContent = IR_EMPTY; $('irTable').innerHTML = ''; return; }
   for (const x of rows) x.avg = x.r.reduce((a, c) => a + c, 0) / x.r.length;
-  const worst = rows.length > 1 ? rows.reduce((a, c) => (c.avg > a.avg ? c : a)) : null;
-  $('irInfo').textContent = worst ? '内阻最大的一块是' + worst.m.name + '。' : '';
+  let verdict = '', worst = null;
+  if (rows.length > 1) {
+    const top = rows.reduce((a, c) => (c.avg > a.avg ? c : a));
+    const others = rows.filter(x => x !== top).map(x => x.avg).sort((a, b) => a - b), h = others.length >> 1;
+    const mid = others.length % 2 ? others[h] : (others[h - 1] + others[h]) / 2;
+    const over = Math.max(0, (top.avg / mid - 1) * 100), avgs = rows.map(x => x.avg);
+    if (est.n < IR_MIN) verdict = '只配上 ' + est.n + ' 组数据，还太少，先不要下结论。';
+    else if (over >= 20) { worst = top; verdict = top.m.name + '的内阻比其他几块高出约 ' + over.toFixed(0) + '%，值得留意（用了 ' + est.n + ' 组数据）。'; }
+    else verdict = '各块差不多：每节 ' + Math.min(...avgs).toFixed(1) + '～' + Math.max(...avgs).toFixed(1) + ' mΩ，最大的一块只比其他几块高 ' + over.toFixed(0) +
+      '%，在测量误差（约 10%）以内，没有哪一块异常（用了 ' + est.n + ' 组数据）。';
+  }
+  $('irInfo').textContent = verdict + (state.temps && state.temps.length ? '现在电池 ' + state.temps[0] + '～' + state.temps[1] + ' °C，越冷内阻越大。' : '');
   $('irTable').innerHTML = '<tr><td>模块</td><td>每节平均</td></tr>' + rows.map(x =>
-    '<tr><td>' + x.m.name + (x === worst ? '（最大）' : '') + '<br><span style="color:var(--muted);font-size:12px">各节：' +
+    '<tr><td>' + x.m.name + (x === worst ? '（偏大）' : '') + '<br><span style="color:var(--muted);font-size:12px">各节：' +
     x.r.map(v => v.toFixed(2)).join(' / ') + '</span></td><td>' + x.avg.toFixed(2) + ' mΩ</td></tr>').join('');
 }
 // 调试用：把还没认出含义的字节列出来，方便在不同状态下对比
@@ -694,10 +737,15 @@ function applyVendor() {
   const sum = s.cells.reduce((a, b) => a + b, 0);
   s.complete = !!summary && Math.abs(sum - summary.totalV) < 1;      // 五块都收到了才算完整
   s.totalV = s.complete || !summary ? sum : summary.totalV;
-  s.current = summary ? summary.current : list[list.length - 1].current;
+  // 电流：五块串在一起，流过的是同一个电流；五个传感器各有零点几安的误差，取平均最准
+  s.current = avg(list.map(m => m.current));
   s.nominalAh = avg(list.map(m => m.nominalAh));
-  s.remainAh = avg(list.map(m => m.remainAh));
-  s.socPct = summary ? summary.soc : avg(list.map(m => m.soc));
+  s.meanAh = avg(list.map(m => m.remainAh));               // 算"用掉多少电"用五块的平均：各块数得快慢差百分之几，平均最准
+  // 还能用多少电看最低的一块：五块串联，哪一块先放空，整车就断电
+  const lowest = list.reduce((a, m) => (m.remainAh < a.remainAh ? m : a));
+  s.remainAh = lowest.remainAh;
+  s.socPct = lowest.soc;
+  s.socFrom = list.length > 1 ? lowest.name : '';
   s.rsoc = summary ? summary.soc : undefined;
   const temps = list.flatMap(m => m.temps);
   s.temps = [Math.min(...temps), Math.max(...temps)];
@@ -713,7 +761,7 @@ function applyVendor() {
     const blk = blockGroups(s.cells);
     s.hold = { bn: blk.lowest ? blk.lowest.name : '', bg: blk.lowest ? Math.round(blk.gap * 1000) : '' };
   }
-  if (s.complete) { if (s.sync) recordSample(); sessUpdate(); }
+  if (s.complete) { if (s.sync) { recordSample(); irSample(); } sessUpdate(); }
   render();
   renderIr();
   renderRaw();
@@ -724,28 +772,31 @@ function applyVendor() {
 let sess = null;
 function sessUpdate() {
   const s = state, st = cellStats(s.cells), now = Date.now();
-  if (!sess) sess = { t0: now, ah0: s.remainAh, minI: 0, maxI: 0, maxP: 0, minV: 99, minName: '', maxDiff: 0, maxT: -99, vSum: 0, n: 0 };
-  const currents = s.modules.map(m => m.current).concat(summary ? [summary.current] : []);
+  if (!sess) sess = { t0: now, ah0: s.meanAh, minI: 0, maxI: 0, maxP: 0, minV: 99, minName: '', maxDiff: 0, maxT: -99, vSum: 0, n: 0, wSum: 0, iSum: 0 };
+  const currents = s.modules.map(m => m.current);
   sess.minI = Math.min(sess.minI, ...currents);
   sess.maxI = Math.max(sess.maxI, ...currents);
   sess.maxP = Math.max(sess.maxP, ...currents.map(i => Math.abs(i * s.totalV)));
   if (st.min < sess.minV) { sess.minV = st.min; sess.minName = s.modules[Math.floor(st.lo / 4)].name; }
-  sess.maxDiff = Math.max(sess.maxDiff, st.diff);
+  if (s.sync) sess.maxDiff = Math.max(sess.maxDiff, st.diff);           // 电流在变时算出来的压差是假的，不计入
   sess.maxT = Math.max(sess.maxT, s.temps[1]);
   sess.vSum += s.totalV; sess.n++;
-  sess.t1 = now; sess.ah1 = s.remainAh;
+  sess.wSum += Math.abs(s.current) * s.totalV; sess.iSum += Math.abs(s.current);
+  sess.t1 = now; sess.ah1 = s.meanAh;
 }
+// 用电时的平均电压：按电流大小加权。电流大的时候电压低，占的份量也大；直接按时间平均会把能量算高百分之二三
+const sessVolt = () => (sess.iSum > 1 ? sess.wSum / sess.iSum : sess.vSum / sess.n);
 function renderSess() {
   if (!sess) { $('sessTable').innerHTML = '<tr><td>收齐全部数据后开始统计</td><td></td></tr>'; return; }
-  const mins = Math.round((sess.t1 - sess.t0) / 60000), used = sess.ah0 - sess.ah1, vAvg = sess.vSum / sess.n;
+  const mins = Math.round((sess.t1 - sess.t0) / 60000), used = sess.ah0 - sess.ah1;
   const rows = [
     ['已统计', mins >= 60 ? Math.floor(mins / 60) + ' 小时 ' + (mins % 60) + ' 分' : mins + ' 分钟'],
-    [used >= 0 ? '用掉的电量' : '充进的电量', Math.abs(used).toFixed(2) + ' Ah（约 ' + Math.abs(used * vAvg).toFixed(0) + ' Wh）'],
+    [used >= 0 ? '用掉的电量' : '充进的电量', Math.abs(used).toFixed(2) + ' Ah（约 ' + Math.abs(used * sessVolt()).toFixed(0) + ' Wh）'],
     ['最大放电电流', (-sess.minI).toFixed(1) + ' A'],
     ['最大充电电流', sess.maxI.toFixed(1) + ' A'],
     ['最大功率', sess.maxP.toFixed(0) + ' W'],
     ['最低单体电压', sess.minV.toFixed(3) + ' V（' + sess.minName + '）'],
-    ['最大压差', (sess.maxDiff * 1000).toFixed(0) + ' mV'],
+    ['最大压差（电流稳定时）', (sess.maxDiff * 1000).toFixed(0) + ' mV'],
     ['最高温度', sess.maxT + ' °C'],
   ];
   $('sessTable').innerHTML = rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
@@ -764,12 +815,12 @@ function stamp(t) {
 function renderSnaps() {
   if (!snaps.length) { $('snapTable').innerHTML = '<tr><td>还没有快照</td><td></td></tr>'; return; }
   $('snapTable').innerHTML = snaps.slice(-5).reverse().map(s =>
-    '<tr><td>' + stamp(s.t).slice(5) + ' · ' + s.note + '<br><span style="color:var(--muted);font-size:12px">电量 ' + s.soc +
+    '<tr><td>' + stamp(s.t).slice(5) + ' · ' + s.note + '<br><span style="color:var(--muted);font-size:12px">电量 ' + (s.sm === undefined || s.sm === '' ? s.soc : s.sm) +
     '% · 电流 ' + s.i.toFixed(1) + ' A · ' + (s.bn ? s.bn + '低 ' + s.bg + ' mV' : '') + '</span></td><td>压差 ' + s.d + ' mV</td></tr>').join('');
 }
 function snapCsv() {
-  return ['时间,状态,电量%,压差mV,最低的一块,这一块平均每节低mV,电流A,最低V,最高V,温度'].concat(
-    snaps.map(s => [stamp(s.t), s.note, s.soc, s.d, s.bn, s.bg, s.i, s.lo, s.hi, s.temp].join(','))).join('\n');
+  return ['时间,状态,电量%,压差mV,最低的一块,这一块平均每节低mV,电流A,最低V,最高V,温度,最低块电量%'].concat(
+    snaps.map(s => [stamp(s.t), s.note, s.soc, s.d, s.bn, s.bg, s.i, s.lo, s.hi, s.temp, s.sm === undefined ? '' : s.sm].join(','))).join('\n');
 }
 const NOTE_KEY = 'bms-snap-note';             // 记住上次选的状态，每天打卡不用重选
 try { const n = localStorage.getItem(NOTE_KEY); if (n) $('snapNote').value = n; } catch (e) { /* 忽略 */ }
@@ -778,9 +829,9 @@ const dataReady = () => !!(state.modules && state.complete && (connected || demo
 function takeSnapshot() {
   const st = cellStats(state.cells), blk = blockGroups(state.cells);
   const snap = {
-    t: Date.now(), note: $('snapNote').value + (state.sync === false ? '（电流在变，压差不准）' : ''), soc: +state.socPct.toFixed(1), d: Math.round(st.diff * 1000),
+    t: Date.now(), note: $('snapNote').value + (state.sync === false ? '（电流在变，压差不准）' : ''), soc: recSoc(), sm: recSocMin(), d: Math.round(st.diff * 1000),
     bn: blk.lowest ? blk.lowest.name : '', bg: blk.lowest ? Math.round(blk.gap * 1000) : '',
-    i: state.current, lo: st.min, hi: st.max, temp: state.temps.join('~'),
+    i: +state.current.toFixed(2), lo: st.min, hi: st.max, temp: state.temps.join('~'),
   };
   snaps.push(snap);
   if (snaps.length > 500) snaps = snaps.slice(-500);
@@ -884,14 +935,32 @@ function parseCells(d) {
 // ---------- 显示 ----------
 const PROTECT = ['单体过压', '单体欠压', '整组过压', '整组欠压', '充电过温', '充电低温', '放电过温', '放电低温',
                  '充电过流', '放电过流', '短路保护', '采样芯片错误', '软件锁定开关'];
-// 五块各自算的电量：[['A', '60%'], …]。只连了一块或不是这种电池时返回空
-function socBlocks() {
+// 各块一览：每块的电量、块内压差、温度。只连了一块或不是这种电池时返回空
+const BLOCK_FOOT = '这里的压差是每块自己 4 节之间的差（mV），骑车时也准。橙色是电量最低的一块。';
+function blockRows() {
   const m = state.modules;
   if (!m || m.length < 2) return [];
-  return m.map(x => [x.name.replace('模块 ', ''), (x.soc % 1 ? x.soc.toFixed(1) : x.soc.toFixed(0)) + '%']);
+  const socs = m.map(x => x.soc), lo = Math.min(...socs), hi = Math.max(...socs);
+  return m.map(x => ({
+    name: x.name.replace('模块 ', ''),
+    soc: x.soc % 1 ? x.soc.toFixed(1) : x.soc.toFixed(0),
+    gap: x.gap,
+    temp: x.temps[0] === x.temps[1] ? x.temps[0] + '°' : Math.min(...x.temps) + '/' + Math.max(...x.temps) + '°',
+    low: x.soc === lo && lo < hi,
+  }));
 }
-function socBlocksHtml() {
-  return socBlocks().map(b => '<div><small>' + b[0] + '</small>' + b[1] + '</div>').join('');
+function blocksFill(el, rows, foot) {
+  const line = (label, cell) => '<span class="l">' + label + '</span>' + rows.map(cell).join('');
+  const html = !rows.length ? '' :
+    line('', r => '<span class="h">' + r.name + '</span>') +
+    line('电量', r => '<span' + (r.low ? ' class="low"' : '') + '>' + r.soc + '%</span>') +
+    line('压差', r => '<span>' + r.gap + '</span>') +
+    line('温度', r => '<span>' + r.temp + '</span>') +
+    (foot ? '<span class="f">' + foot + '</span>' : '');
+  if (el.lastHtml === html) return;                         // 内容没变就不重画
+  el.lastHtml = html;
+  el.style.gridTemplateColumns = 'auto repeat(' + (rows.length || 1) + ', 1fr)';
+  el.innerHTML = html;
 }
 function cellStats(cells) {
   if (!cells.length) return null;
@@ -905,10 +974,7 @@ function render() {
     const or = (v, f) => (v === undefined || v === null ? '--' : f(v));
     $('soc').textContent = s.socPct.toFixed(1) + '%';
     if (s.modules) {
-      const socs = s.modules.map(m => m.soc);
-      $('socSub').textContent = summary
-        ? '整组电量'
-        : '这块电池自己算的电量';
+      $('socSub').textContent = s.socFrom ? '按最低的一块 · ' + s.socFrom : '这块电池自己算的电量';
     } else {
       $('socSub').textContent = '剩余 ' + s.remainAh.toFixed(1) + ' / ' + s.nominalAh.toFixed(1) + ' Ah';
     }
@@ -918,11 +984,20 @@ function render() {
     $('tempLbl').textContent = s.modules ? '温度（最低 / 最高）' : '温度';
     $('temps').textContent = s.temps.length ? s.temps.map(t => t.toFixed(0) + '°').join(' / ') : '--';
     $('fet').textContent = or(s.fet, v => ((v & 1) ? '开' : '关') + ' / ' + ((v & 2) ? '开' : '关'));
-    const active = PROTECT.filter((_, i) => s.protect & (1 << i));
-    $('protect').textContent = active.length ? '保护状态：' + active.join('、') : '';
+    const active = PROTECT.filter((_, i) => s.protect & (1 << i)), notes = [];
+    if (active.length) notes.push('保护状态：' + active.join('、') + '。');
+    if (s.socFrom && s.rsoc !== undefined) notes.push('顶上的大数字取的是电量最低的一块（' + s.socFrom + '）：五块串联，哪一块先放空，整车就断电。保护板自己汇总的电量是 ' + s.rsoc +
+      '%，它的算法是"最低的一块放空算 0%，最高的一块充满算 100%"，所以两个数会一起到 0。各块的电量是各自的保护板数出来的，本身有几个点的误差。');
+    if (s.temps.length && Math.min(...s.temps) <= 2) notes.push('电池温度已经接近 0 °C：磷酸铁锂在 0 °C 以下充电会伤电池，骑车放电不受影响。');
+    $('protect').textContent = notes.join('');
+    $('remainLbl').textContent = s.socFrom ? '剩余容量（最低块）' : '剩余容量';
+    $('fullLbl').textContent = s.modules ? '标称容量（每块）' : '满电容量';
+    $('rsocLbl').textContent = s.modules ? '保护板汇总电量' : '保护板报的电量';
+    for (const id of ['cycles', 'fet', 'prodDate', 'swVer']) $(id).parentElement.style.display = s.modules ? 'none' : '';   // 这块电池的数据里没有这几项
     $('remainAh').textContent = s.remainAh.toFixed(2) + ' Ah';
     $('fullAh').textContent = s.nominalAh.toFixed(2) + ' Ah';
-    $('energy').textContent = (s.remainAh * s.totalV).toFixed(0) + ' Wh';
+    // 剩余能量：这种电池按每节 3.2 V（磷酸铁锂的标称电压）算。以前乘的是当时的总电压，一拧油门电压掉下去，"剩余能量"也跟着掉，不合理
+    $('energy').textContent = (s.modules ? s.remainAh * 3.2 * s.cellCount : s.remainAh * s.totalV).toFixed(0) + ' Wh';
     $('power').textContent = (s.totalV * s.current).toFixed(0) + ' W';
     $('rsoc').textContent = or(s.rsoc, v => v + '%');
     $('cellCount').textContent = s.cellCount + ' 串';
@@ -943,7 +1018,7 @@ function render() {
       d.textContent = '≈' + (s.est / 1000).toFixed(3) + ' V';
       d.classList.remove('bad');
     }
-    $('diffLbl').textContent = s.sync !== false ? '压差' : s.est !== null && s.est !== undefined ? '压差（估算）' : '压差（等稳定）';
+    $('diffLbl').textContent = s.sync !== false ? '整组压差' : s.est !== null && s.est !== undefined ? '整组压差（估算）' : '整组压差（等稳定）';
     $('maxV').textContent = st.max.toFixed(3) + ' V';
     $('minV').textContent = st.min.toFixed(3) + ' V';
     $('maxLbl').textContent = '最高（第 ' + (st.hi + 1) + ' 节）';
@@ -952,7 +1027,7 @@ function render() {
     renderBlocks(s.cells, st);
   }
   if (s.socPct !== undefined) $('socBar').style.width = Math.max(0, Math.min(100, s.socPct)) + '%';
-  $('socBlocks').innerHTML = socBlocksHtml();
+  blocksFill($('socBlocks'), blockRows(), BLOCK_FOOT);
   ride.dataAt = Date.now();
   renderRide();
 }
@@ -991,6 +1066,7 @@ function renderBlocks(cells, st) {
       ? '你现在连的是单独一块电池，只能看到它自己的 4 节。要看全部 20 节，请连名称结尾是 01 的那一块。'
       : '';
   const span = Math.max(st.max - st.min, 0.01);          // 每节底部的小横条：在最低和最高之间的相对位置
+  const full = groups.filter(x => x.part.length === 4);
   $('blocks').innerHTML = groups.map(g => {
     const isLow = !unsteady && g === lowest && gap >= 0.005;
     const cellsHtml = g.part.map((v, k) => {
@@ -1000,9 +1076,12 @@ function renderBlocks(cells, st) {
       const w = Math.round(12 + 88 * (v - st.min) / span);
       return '<div class="cell' + cls + '"><small>' + (idx + 1) + '</small><b>' + v.toFixed(3) + '</b><i style="width:' + w + '%"></i></div>';
     }).join('');
+    const rest = full.filter(x => x !== g);                 // 和其他几块比：电流稳定时才比得准
+    const rel = unsteady || !rest.length || g.part.length !== 4 ? null : (g.avg - rest.reduce((a, x) => a + x.avg, 0) / rest.length) * 1000;
+    const relText = rel === null ? '' : Math.abs(rel) < 0.5 ? ' · 和其他块持平' : ' · 平均每节比其他块' + (rel < 0 ? '低 ' : '高 ') + Math.abs(rel).toFixed(0) + ' mV';
     const sub = g.mod
       ? '<div class="block-sub">电量 ' + g.mod.soc.toFixed(1) + '% · 剩余 ' + g.mod.remainAh.toFixed(2) + ' Ah · 温度 ' +
-        g.mod.temps.map(t => t + '°').join(' / ') + '</div>'
+        g.mod.temps.map(t => t + '°').join(' / ') + ' · 块内压差 ' + g.mod.gap + ' mV' + relText + '</div>'
       : '';
     return '<div class="block"><div class="block-head' + (isLow ? ' lowest' : '') + '"><span>' + g.name +
       (isLow ? '（整组最低）' : '') + '</span><span>合计 ' + g.sum.toFixed(3) + ' V</span></div>' + sub + '<div class="cells">' +
@@ -1026,6 +1105,8 @@ try { history = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch (e) 
     try { localStorage.setItem(HIST_KEY, JSON.stringify(history)); } catch (e) { /* 忽略 */ }
   }
 }
+const recSoc = () => { const v = state.modules && state.rsoc !== undefined ? state.rsoc : state.socPct; return v === undefined ? '' : +v.toFixed(1); };
+const recSocMin = () => (state.socFrom && state.socPct !== undefined ? state.socPct : '');
 function recordSample() {
   const st = cellStats(state.cells);
   if (!st || demoTimer) { if (demoTimer) drawChart(demoSamples()); return; }
@@ -1035,8 +1116,8 @@ function recordSample() {
   const blk = blockGroups(state.cells);
   history.push({
     t: now, d: Math.round(st.diff * 1000), lo: st.min, hi: st.max,
-    soc: state.socPct === undefined ? '' : +state.socPct.toFixed(1),
-    i: state.current, v: state.totalV === undefined ? '' : +state.totalV.toFixed(2),
+    soc: recSoc(), sm: recSocMin(),
+    i: state.current === undefined ? '' : +state.current.toFixed(2), v: state.totalV === undefined ? '' : +state.totalV.toFixed(2),
     bn: blk.lowest ? blk.lowest.name : '', bg: blk.lowest ? Math.round(blk.gap * 1000) : ''
   });
   if (history.length > 3000) history = history.slice(-3000);
@@ -1104,12 +1185,12 @@ function drawChart(samples) {
     '。共 ' + samples.length + ' 条记录，图上显示最近 ' + data.length + ' 条。';
 }
 function csvText() {
-  const rows = ['时间,压差mV,最低V,最高V,电量%,电流A,总电压V,最低的一块,这一块平均每节低mV'];
+  const rows = ['时间,压差mV,最低V,最高V,电量%,电流A,总电压V,最低的一块,这一块平均每节低mV,最低块电量%'];
   for (const p of history) {
     const d = new Date(p.t);
     const ts = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') +
       ' ' + d.toTimeString().slice(0, 8);
-    rows.push([ts, p.d, p.lo, p.hi, p.soc, p.i, p.v, p.bn === undefined ? '' : p.bn, p.bg === undefined ? '' : p.bg].join(','));
+    rows.push([ts, p.d, p.lo, p.hi, p.soc, p.i, p.v, p.bn === undefined ? '' : p.bn, p.bg === undefined ? '' : p.bg, p.sm === undefined ? '' : p.sm].join(','));
   }
   return rows.join('\n');
 }
@@ -1122,7 +1203,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 19 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 20 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1584,29 +1665,33 @@ function showTab(name) {
 document.querySelectorAll('nav.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.go); });
 
 // ---------- 骑行模式：全屏大字，只看不操作 ----------
-const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
+const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, speedAt: 0, fixAt: 0, cbAt: 0, fixes: [], gps: null, tick: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
 function renderRide() {
   if (!ride.on) return;
-  const s = state, st = cellStats(s.cells);
+  const s = state, st = cellStats(s.cells), now = Date.now();
   const put = (id, text) => { $(id).textContent = text; };
-  const view = { soc: s.socPct, watts: null, speed: null, km: null, diffMv: null, warn: '', socs: socBlocks() };
-  $('rSocBlocks').innerHTML = socBlocksHtml();
+  const rows = blockRows();
+  const view = { soc: s.socPct, watts: null, speed: null, km: null, diffMv: null, warn: '', blocks: rows };
+  blocksFill($('rSocBlocks'), rows, '');
   if (s.socPct !== undefined) {
     put('rSoc', s.socPct.toFixed(0) + '%');
     $('rSocBar').style.width = Math.max(0, Math.min(100, s.socPct)) + '%';
     $('rSocBar').style.background = s.socPct <= 15 ? '#ef4444' : s.socPct <= 30 ? '#f59e0b' : '#35c46b';
   }
-  const cur = s.liveCurrent !== undefined && s.modules ? s.liveCurrent : s.current;
+  let cur = s.liveCurrent !== undefined && s.modules ? s.liveCurrent : s.current;
   if (cur !== undefined && s.totalV !== undefined) {
+    if (Math.abs(cur) < 0.6) cur = 0;                       // 停着不动时传感器也会读出零点几安，那是零点误差，当作 0
     const watts = -cur * s.totalV;                          // 放电为正
-    view.watts = Math.abs(watts) < 10 ? 0 : watts;
-    put('rPower', Math.abs(watts) < 10 ? '0' : Math.abs(watts).toFixed(0));
-    put('rPowerLbl', watts < -10 ? '正在充电（瓦）' : '功率（瓦）');
+    view.watts = watts;
+    put('rPower', Math.abs(watts).toFixed(0));
+    put('rPowerLbl', watts < 0 ? '正在充电（瓦）' : '功率（瓦）');
     put('rCurrent', Math.abs(cur).toFixed(1) + ' A');
     put('rVolt', s.totalV.toFixed(1) + ' V');
   }
-  if (ride.speed !== null) view.speed = ride.speed * 3.6;
-  put('rSpeed', ride.speed === null ? '' : view.speed.toFixed(0) + ' km/h');
+  // 车速：超过 5 秒没有新的定位，就不再显示旧的数（切到别的应用后，系统可能不再给网页定位）
+  const speedOk = ride.speed !== null && now - ride.speedAt < 5000;
+  if (speedOk) view.speed = ride.speed * 3.6;
+  put('rSpeed', ride.watch === null ? '' : speedOk ? view.speed.toFixed(0) + ' km/h' : '-- km/h');
   const warns = [];
   if (st) {
     put('rMinV', st.min.toFixed(3));
@@ -1618,34 +1703,41 @@ function renderRide() {
   view.diffMv = est !== null ? est : ride.diffMv;           // 稳定时用实测值；电流在变时用估算值；都没有就保留上一次的
   view.diffApprox = est !== null;
   view.diffHeld = s.sync === false && est === null;
-  put('rDiffLbl', est !== null ? '压差（近30秒估算）' : s.sync === false ? '压差（等电流稳定）'
-    : s.sync && cur !== undefined ? (Math.abs(cur) < 1 ? '压差（静止）' : '压差（带负载）') : '压差');
+  put('rDiffLbl', est !== null ? '整组压差（近30秒估算）' : s.sync === false ? '整组压差（等电流稳定）'
+    : s.sync && cur !== undefined ? (Math.abs(cur) < 1 ? '整组压差（静止）' : '整组压差（带负载）') : '整组压差');
   put('rDiff', view.diffMv === null ? '--' : (est !== null ? '≈' : '') + view.diffMv.toFixed(0) + ' mV');
   if (s.temps && s.temps.length) {
-    const tMax = Math.max(...s.temps);
-    put('rTemp', tMax.toFixed(0) + ' °C');
+    const tMin = Math.min(...s.temps), tMax = Math.max(...s.temps);
+    put('rTemp', (tMin === tMax ? tMax.toFixed(0) : tMin.toFixed(0) + '~' + tMax.toFixed(0)) + ' °C');
     if (tMax >= 55) warns.push('电池温度偏高（' + tMax.toFixed(0) + ' °C），请停车降温');
   }
   if (s.socPct !== undefined && s.socPct <= 15) warns.push('电量低于 15%，请尽快充电');
-  let usedWh = null;
+  let usedAh = null;
   if (sess && sess.n) {
-    const used = sess.ah0 - sess.ah1;
-    usedWh = used * (sess.vSum / sess.n);
-    put('rUsed', (used >= 0 ? '' : '+') + Math.abs(used).toFixed(2) + ' Ah');
+    usedAh = sess.ah0 - sess.ah1;
+    put('rUsed', (usedAh >= 0 ? '' : '+') + Math.abs(usedAh).toFixed(2) + ' Ah');
   } else put('rUsed', '--');
   const km = ride.dist / 1000;
   if (ride.watch !== null) view.km = km;
   put('rDist', ride.watch === null ? '--' : km.toFixed(2) + ' km');
-  if (usedWh !== null && usedWh > 5 && km >= 0.3 && s.remainAh !== undefined) {
-    const eff = usedWh / km;
-    put('rEff', eff.toFixed(0));
-    put('rRange', (s.remainAh * s.totalV / eff).toFixed(0) + ' km');
+  // 能耗和续航：至少骑出 0.5 公里、用掉 0.15 Ah 才算，太短的话起步那几下占的份量太大
+  if (usedAh !== null && usedAh >= 0.15 && km >= 0.5 && s.remainAh !== undefined) {
+    put('rEff', (usedAh * sessVolt() / km).toFixed(0));
+    put('rRange', (s.remainAh / (usedAh / km)).toFixed(0) + ' km');     // 最低那一块还剩的电 ÷ 这一趟每公里用掉的电
   } else { put('rEff', '--'); put('rRange', '--'); }
   $('rWarn').textContent = warns.join('；');
   $('rWarn').classList.toggle('show', warns.length > 0);
   view.warn = warns.length ? warns[0] : '';
   ride.view = view;
   pipDraw();
+}
+function rideTick() {                                       // 每秒一次：定位断了要能看出来，顺便把定位信号的质量记进日志
+  if (!ride.on) return;
+  gpsStatFlush(false);
+  if (ride.watch !== null && ride.fixAt && Date.now() - ride.fixAt > 10000) {
+    $('rGpsNote').textContent = '已经 ' + Math.round((Date.now() - ride.fixAt) / 1000) + ' 秒没有收到定位，车速和里程先停着。切到别的应用后，系统可能不再给网页定位；回到本页会自动接上。';
+  }
+  renderRide();
 }
 async function rideStart() {
   if (!connected && !demoTimer) await connect();
@@ -1657,17 +1749,20 @@ async function rideStart() {
   keepAwake();
   gpsStart();                                               // 车速和里程默认就开，不用再点
   pipPrepare();
+  if (!ride.tick) ride.tick = setInterval(rideTick, 1000);
   renderRide();
 }
 function rideStop() {
   ride.on = false;
   $('ride').hidden = true;
   document.body.style.overflow = '';
+  if (ride.tick) { clearInterval(ride.tick); ride.tick = null; }
   gpsStop();
   pipStop();
   renderSess();
 }
 function gpsStop() {
+  gpsStatFlush(true); ride.gps = null;
   if (ride.watch !== null && navigator.geolocation) navigator.geolocation.clearWatch(ride.watch);
   ride.watch = null; ride.speed = null;
 }
@@ -1677,27 +1772,65 @@ function distanceM(a, b) {                                  // 两个经纬度�
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-const GPS_NOTE = '车速和里程用手机定位计算，只在这台手机上使用，不会上传。里程从进入骑行模式开始一直累计。骑车时请不要操作手机。';
+const GPS_NOTE = '车速和里程用手机定位计算，里程从进入骑行模式开始一直累计。位置只留在这台手机上，不会上传；日志里只记定位信号好不好和平均车速，用来排查车速不准。骑车时请不要操作手机。';
+// 定位信号的质量：每分钟往日志里记一行（收到几次、最长隔多久、精度、系统有没有直接给车速），用来排查"车速和导航对不上"。不记位置。
+function gpsStatReset() { ride.gps = { t0: Date.now(), n: 0, hidden: 0, bad: 0, accMin: Infinity, accMax: 0, gapMax: 0, nat: 0, natSum: 0, calc: 0, calcSum: 0 }; }
+function gpsStatFlush(force) {
+  const g = ride.gps;
+  if (!g) return;
+  const secs = Math.round((Date.now() - g.t0) / 1000);
+  if (!force && secs < 60) return;
+  if (secs >= 5) {
+    const kmh = (sum, n) => (sum / n * 3.6).toFixed(1) + ' km/h';
+    log(g.n + g.bad === 0
+      ? '定位：' + secs + ' 秒内一次都没收到（页面在' + (document.hidden ? '后台' : '前台') + '）'
+      : '定位：' + secs + ' 秒内收到 ' + (g.n + g.bad) + ' 次（其中页面在后台时 ' + g.hidden + ' 次，太飘丢掉 ' + g.bad + ' 次），最长间隔 ' +
+        (g.gapMax / 1000).toFixed(1) + ' 秒' + (g.n ? '，精度 ' + g.accMin.toFixed(0) + '~' + g.accMax.toFixed(0) + ' 米' : '') +
+        '，系统直接给车速 ' + g.nat + ' 次' + (g.nat ? '（平均 ' + kmh(g.natSum, g.nat) + '）' : '') + (g.calc ? '，按位移算平均 ' + kmh(g.calcSum, g.calc) : ''));
+  }
+  gpsStatReset();
+}
 function onPosition(p) {
-  const c = p.coords;
-  if ($('rGpsNote').textContent !== GPS_NOTE) $('rGpsNote').textContent = GPS_NOTE;
-  if (c.accuracy > 40) return;                              // 定位太飘的点不要
+  const c = p.coords, now = Date.now(), g = ride.gps;
   if (p.timestamp > 1e12 && p.timestamp < ride.startAt - 2000) return;   // 进骑行模式之前的旧位置不要
-  const here = { lat: c.latitude, lon: c.longitude };
+  if (g) {
+    if (ride.cbAt) g.gapMax = Math.max(g.gapMax, now - ride.cbAt);
+    if (document.hidden) g.hidden++;
+  }
+  ride.cbAt = now;
+  if (c.accuracy > 40) { if (g) g.bad++; return; }          // 定位太飘的点不要
+  if ($('rGpsNote').textContent !== GPS_NOTE) $('rGpsNote').textContent = GPS_NOTE;
+  ride.fixAt = now;
+  const here = { lat: c.latitude, lon: c.longitude, t: p.timestamp };
   if (ride.last) {
     const d = distanceM(ride.last, here), dt = (p.timestamp - ride.lastT) / 1000;
     if (d >= 4 && dt > 0 && d / dt < 30) {                  // 挪动 4 米以上才算，超过 108 km/h 的跳点丢掉
       ride.dist += d; ride.last = here; ride.lastT = p.timestamp;   // 进了骑行模式就一直累计
-      if (c.speed === null || c.speed < 0) ride.speed = d / dt;
-    } else if (dt > 4) ride.speed = c.speed !== null && c.speed >= 0 ? c.speed : 0;
+    }
   } else { ride.last = here; ride.lastT = p.timestamp; }
-  if (c.speed !== null && c.speed >= 0) ride.speed = c.speed;
+  // 车速。首选系统直接给的车速：它是按卫星信号的频率变化测的，导航软件用的也是这个来源，比用位置算准得多。
+  // 系统不给的时候，才用最近 3 秒走过的直线距离来算；这样算会慢一两秒，也更容易跳。
+  ride.fixes.push(here);
+  while (ride.fixes.length > 1 && here.t - ride.fixes[0].t > 3000) ride.fixes.shift();
+  const first = ride.fixes[0], span = (here.t - first.t) / 1000;
+  let calc = ride.fixes.length > 1 && span >= 1.5 ? distanceM(first, here) / span : null;
+  if (calc !== null && calc >= 30) calc = null;
+  const nat = c.speed !== null && c.speed !== undefined && c.speed >= 0 ? c.speed : null;
+  if (g) {
+    g.n++; g.accMin = Math.min(g.accMin, c.accuracy); g.accMax = Math.max(g.accMax, c.accuracy);
+    if (nat !== null) { g.nat++; g.natSum += nat; }
+    if (calc !== null) { g.calc++; g.calcSum += calc; }
+  }
+  const v = nat !== null ? nat : calc;
+  if (v !== null) { ride.speed = v < (nat !== null ? 0.5 : 1) ? 0 : v; ride.speedAt = now; }   // 停着时定位也会小幅飘动，太小的当作 0
   renderRide();
 }
 function gpsStart() {
   if (ride.watch !== null) return;
   if (!navigator.geolocation) { $('rGpsNote').textContent = '这个浏览器不支持定位，车速和里程显示不了。'; return; }
   $('rGpsNote').textContent = GPS_NOTE;
+  ride.fixes = []; ride.fixAt = 0; ride.cbAt = 0; ride.speedAt = 0;
+  gpsStatReset();
   ride.watch = navigator.geolocation.watchPosition(onPosition, e => {
     if (e && e.code === 1) {                                // 没给定位权限：停掉，说明怎么重新打开
       gpsStop(); renderRide();
@@ -1729,44 +1862,53 @@ function pipDraw() {
   const font = (px, bold) => { g.font = (bold ? '700 ' : '400 ') + px + 'px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'; };
   g.fillStyle = '#05080d'; g.fillRect(0, 0, W, H);
   g.textBaseline = 'alphabetic';
-  // 左上：电量
+  // 左上：电量（按最低的一块）
   const soc = has(v.soc) ? v.soc : null;
   const socColor = soc === null ? '#8b98a8' : soc <= 15 ? '#ef4444' : soc <= 30 ? '#f59e0b' : '#35c46b';
-  g.textAlign = 'left'; g.fillStyle = '#f3f6fa'; font(92, true);
-  g.fillText(soc === null ? '--' : soc.toFixed(0) + '%', 28, 112);
-  g.fillStyle = '#1b2532'; g.fillRect(28, 132, 250, 14);
-  if (soc !== null) { g.fillStyle = socColor; g.fillRect(28, 132, 250 * Math.max(0, Math.min(100, soc)) / 100, 14); }
-  if (v.socs && v.socs.length) {                            // 五块各自的电量
-    g.fillStyle = '#8b98a8'; font(20);
-    g.fillText(v.socs.map(b => b[0] + ' ' + b[1].replace('%', '')).join('   '), 28, 174, 420);
-  }
+  g.textAlign = 'left'; g.fillStyle = '#f3f6fa'; font(84, true);
+  g.fillText(soc === null ? '--' : soc.toFixed(0) + '%', 28, 92);
+  g.fillStyle = '#1b2532'; g.fillRect(28, 108, 250, 12);
+  if (soc !== null) { g.fillStyle = socColor; g.fillRect(28, 108, 250 * Math.max(0, Math.min(100, soc)) / 100, 12); }
   // 右上：有车速显示车速，没有就显示功率
   const showSpeed = has(v.speed), wattsText = has(v.watts) ? Math.abs(v.watts).toFixed(0) : '--';
   g.textAlign = 'right';
-  g.fillStyle = '#f3f6fa'; font(112, true); g.fillText(showSpeed ? v.speed.toFixed(0) : wattsText, W - 28, 118);
-  g.fillStyle = '#8b98a8'; font(24); g.fillText(showSpeed ? '公里/小时' : v.watts < 0 ? '正在充电（瓦）' : '功率（瓦）', W - 28, 150);
+  g.fillStyle = '#f3f6fa'; font(100, true); g.fillText(showSpeed ? v.speed.toFixed(0) : wattsText, W - 28, 96);
+  g.fillStyle = '#8b98a8'; font(22); g.fillText(showSpeed ? '公里/小时' : v.watts < 0 ? '正在充电（瓦）' : '功率（瓦）', W - 28, 124);
   // 中间一行三项
   const items = [
     showSpeed ? ['功率', wattsText + ' W'] : ['车速', '--'],
-    [v.diffApprox ? '压差（估算）' : v.diffHeld ? '压差（等稳定）' : '压差', has(v.diffMv) ? (v.diffApprox ? '≈' : '') + v.diffMv.toFixed(0) + ' mV' : '--'],
+    [v.diffApprox ? '整组压差（估算）' : v.diffHeld ? '整组压差（等稳定）' : '整组压差', has(v.diffMv) ? (v.diffApprox ? '≈' : '') + v.diffMv.toFixed(0) + ' mV' : '--'],
     ['里程', has(v.km) ? v.km.toFixed(2) + ' km' : '--']
   ];
   g.textAlign = 'left';
   items.forEach((it, i) => {
     const x = 28 + i * 204;
-    g.fillStyle = '#8b98a8'; font(22); g.fillText(it[0], x, 206);
-    g.fillStyle = '#f3f6fa'; font(40, true); g.fillText(it[1], x, 254);
+    g.fillStyle = '#8b98a8'; font(20); g.fillText(it[0], x, 162);
+    g.fillStyle = '#f3f6fa'; font(36, true); g.fillText(it[1], x, 202);
   });
+  // 各块：电量和块内压差（橙色是电量最低的一块）
+  const rows = v.blocks || [];
+  if (rows.length) {
+    g.textAlign = 'left'; g.fillStyle = '#8b98a8'; font(20);
+    g.fillText('电量', 28, 268); g.fillText('压差', 28, 296);
+    g.textAlign = 'center';
+    rows.forEach((r, i) => {
+      const x = 130 + (i + 0.5) * (W - 158) / rows.length;
+      g.fillStyle = '#8b98a8'; font(18); g.fillText(r.name, x, 240);
+      g.fillStyle = r.low ? '#f59e0b' : '#f3f6fa'; font(22, true); g.fillText(r.soc + '%', x, 268);
+      g.fillStyle = '#c8d2de'; font(22); g.fillText(r.gap + ' mV', x, 296);
+    });
+  }
   // 底部：报警，或者数据时间（和手机时间对一下，就知道小窗有没有卡住）
   const age = ride.dataAt ? (Date.now() - ride.dataAt) / 1000 : null;
   if (v.warn) {
-    g.fillStyle = '#b91c1c'; g.fillRect(0, H - 64, W, 64);
-    g.fillStyle = '#fff'; font(26, true); g.textAlign = 'center'; g.fillText(v.warn, W / 2, H - 24, W - 24);
+    g.fillStyle = '#b91c1c'; g.fillRect(0, H - 46, W, 46);
+    g.fillStyle = '#fff'; font(24, true); g.textAlign = 'center'; g.fillText(v.warn, W / 2, H - 14, W - 24);
   } else {
-    font(22); g.textAlign = 'left';
-    if (age === null) { g.fillStyle = '#8b98a8'; g.fillText('等待电池数据…', 28, H - 26); }
-    else if (age > 8) { g.fillStyle = '#f59e0b'; g.fillText('已经 ' + age.toFixed(0) + ' 秒没有新数据', 28, H - 26); }
-    else { g.fillStyle = '#6b7888'; g.fillText('数据时间 ' + new Date(ride.dataAt).toTimeString().slice(0, 8), 28, H - 26); }
+    font(20); g.textAlign = 'left';
+    if (age === null) { g.fillStyle = '#8b98a8'; g.fillText('等待电池数据…', 28, H - 16); }
+    else if (age > 8) { g.fillStyle = '#f59e0b'; g.fillText('已经 ' + age.toFixed(0) + ' 秒没有新数据', 28, H - 16); }
+    else { g.fillStyle = '#6b7888'; g.fillText('数据时间 ' + new Date(ride.dataAt).toTimeString().slice(0, 8), 28, H - 16); }
   }
 }
 function pipNote(text) { $('rPipNote').textContent = text; }
