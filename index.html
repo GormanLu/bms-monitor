@@ -171,7 +171,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 14 版</small></h1>
+    <h1>电池监控<small>第 15 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -181,7 +181,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
       <div class="soc"><b id="soc">--</b><span id="socSub">连接后显示电量</span></div>
       <div class="socbar"><i id="socBar"></i></div>
       <div class="trio">
-        <div><small>压差</small><b id="diff">--</b></div>
+        <div><small id="diffLbl">压差</small><b id="diff">--</b></div>
         <div><small>电流</small><b id="current">--</b></div>
         <div><small>总电压</small><b id="totalV">--</b></div>
       </div>
@@ -385,7 +385,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
   <div class="ride-warn" id="rWarn"></div>
   <div class="ride-grid">
     <div><small>最低单体</small><b id="rMinV">--</b><em id="rMinName"></em></div>
-    <div><small>压差</small><b id="rDiff">--</b></div>
+    <div><small id="rDiffLbl">压差</small><b id="rDiff">--</b></div>
     <div><small>最高温度</small><b id="rTemp">--</b></div>
     <div><small>总电压</small><b id="rVolt">--</b></div>
     <div><small>本次用电</small><b id="rUsed">--</b></div>
@@ -526,9 +526,31 @@ function crcModbus(bytes) {
   }
   return crc;
 }
+// ---------- 跨块的压差什么时候可信 ----------
+// 五块是轮流上报的，前后差一两秒；而且同一块报上来的电压和电流也不是严格同一刻的。
+// 油门一变，各块等于是在不同电流下量的电压，这时拿它们相减得到的"压差"是假的（实测能到 0.16 V，
+// 最低的一块还会在几块之间乱跳）。用实际骑行数据试过"按电流折算"，折不准。
+// 可靠的办法只有一个：最近 10 秒里所有块报的电流都在 3 A 以内，才认为这一刻的压差是真的。
+// 按这个标准筛出来的数据里，最低的一块始终是同一块，压差也不再乱跳。
+const STEADY_MS = 10000, STEADY_AMP = 3;
+let curWin = [];
+function steadyPush(id, cur) {
+  const now = Date.now();
+  curWin.push({ t: now, id, cur });
+  while (curWin.length && now - curWin[0].t > STEADY_MS) curWin.shift();
+}
+function steadyNow(ids) {
+  if (ids.length < 2) return true;                          // 直连单独一块：4 节是一起量的，不存在这个问题
+  if (!curWin.length) return false;
+  const curs = curWin.map(x => x.cur), lo = Math.min(...curs), hi = Math.max(...curs);
+  if (hi - lo > STEADY_AMP) return false;
+  if (!ids.every(id => curWin.some(x => x.id === id))) return false;
+  const span = curWin[curWin.length - 1].t - curWin[0].t;
+  return span >= 7000 || Math.max(Math.abs(lo), Math.abs(hi)) < 2;   // 刚连上还没攒够 10 秒时，只有停着不动才直接算数
+}
 function resetVendor() {
-  protocol = null; vx = []; modules = {}; summary = null; sess = null;
-  state.modules = undefined;
+  protocol = null; vx = []; modules = {}; summary = null; sess = null; curWin = [];
+  state.modules = undefined; state.hold = undefined; state.sync = undefined;
   showVendorMode(false);
 }
 function showVendorMode(on) {
@@ -573,6 +595,7 @@ function handleVendor(f) {
       raw: f,
     };
     irPush(f[6], modules[f[6]].current, modules[f[6]].cells);
+    steadyPush(f[6], modules[f[6]].current);
     state.liveCurrent = modules[f[6]].current;     // 各块轮流上报，约每秒一次，比汇总数据更新得快
   } else if (f[4] === 0x02 && f.length >= 30) {
     summary = { soc: f[21] / 2, totalV: u(22) / 10, current: (u(24) - 30000) / 100, raw: f };
@@ -646,10 +669,11 @@ function applyVendor() {
   s.cellCount = s.cells.length;
   s.fet = s.cycles = s.prodDate = s.swVer = s.balance = undefined;
   s.protect = 0;
-  // 五块是轮流上报的，前后差一两秒。油门在变的时候，各块其实是在不同电流下量的电压，
-  // 这时算出来的"压差"是假的（能到 0.1 V 以上），所以只在各块电流接近时才更新和记录压差。
-  const curs = list.map(m => m.current);
-  s.sync = list.length < 2 || Math.max(...curs) - Math.min(...curs) <= 3;
+  s.sync = steadyNow(list.map(m => m.id));                  // 电流稳住了，跨块的压差才可信
+  if (s.sync) {
+    const blk = blockGroups(s.cells);
+    s.hold = { bn: blk.lowest ? blk.lowest.name : '', bg: blk.lowest ? Math.round(blk.gap * 1000) : '' };
+  }
   if (s.complete) { if (s.sync) recordSample(); sessUpdate(); }
   render();
   renderIr();
@@ -715,7 +739,7 @@ const dataReady = () => !!(state.modules && state.complete && (connected || demo
 function takeSnapshot() {
   const st = cellStats(state.cells), blk = blockGroups(state.cells);
   const snap = {
-    t: Date.now(), note: $('snapNote').value, soc: +state.socPct.toFixed(1), d: Math.round(st.diff * 1000),
+    t: Date.now(), note: $('snapNote').value + (state.sync === false ? '（电流在变，压差不准）' : ''), soc: +state.socPct.toFixed(1), d: Math.round(st.diff * 1000),
     bn: blk.lowest ? blk.lowest.name : '', bg: blk.lowest ? Math.round(blk.gap * 1000) : '',
     i: state.current, lo: st.min, hi: st.max, temp: state.temps.join('~'),
   };
@@ -742,6 +766,11 @@ async function checkIn() {
         ? '你连的是单独一块电池，没有记录。请点"断开"，再打卡一次，选名称结尾 01 的那一块。'
         : '30 秒内没有收齐 20 节数据，没有记录。请靠近电池再试一次。');
       return;
+    }
+    if (state.sync === false) {                // 电流还在变：最多等 20 秒，等它稳住再记
+      toast('电流还在变，等它稳定再记…');
+      const t1 = Date.now();
+      while (connected && state.sync === false && Date.now() - t1 < 20000) await sleep(500);
     }
     const snap = takeSnapshot();
     const summaryText = '已记下：压差 ' + snap.d + ' mV' + (snap.bn ? '，' + snap.bn + '低 ' + snap.bg + ' mV' : '') + '。';
@@ -863,6 +892,7 @@ function render() {
       d.textContent = st.diff.toFixed(3) + ' V';
       d.classList.toggle('bad', st.diff > 0.03 && Math.abs(s.current || 0) < 1);
     }
+    $('diffLbl').textContent = s.sync === false ? '压差（等稳定）' : '压差';
     $('maxV').textContent = st.max.toFixed(3) + ' V';
     $('minV').textContent = st.min.toFixed(3) + ' V';
     $('maxLbl').textContent = '最高（第 ' + (st.hi + 1) + ' 节）';
@@ -898,14 +928,18 @@ function blockGroups(cells) {
 }
 function renderBlocks(cells, st) {
   const { groups, lowest, gap } = blockGroups(cells);
-  $('gapInfo').textContent = lowest
+  const unsteady = state.sync === false, hold = state.hold;
+  $('gapInfo').textContent = unsteady
+    ? '电流正在变化。五块是轮流上报的，这时各块不是在同一个电流下量的，比不出谁高谁低，等电流稳定 10 秒后再看。' +
+      (hold && hold.bn ? '上一次电流稳定时：最低的是' + hold.bn + '，平均每节比其他几块低 ' + hold.bg + ' mV。' : '')
+    : lowest
     ? '最低的一块是' + lowest.name + '，平均每节比其他几块低 ' + (gap * 1000).toFixed(0) + ' mV。'
     : state.modules && state.modules.length === 1
       ? '你现在连的是单独一块电池，只能看到它自己的 4 节。要看全部 20 节，请连名称结尾是 01 的那一块。'
       : '';
   const span = Math.max(st.max - st.min, 0.01);          // 每节底部的小横条：在最低和最高之间的相对位置
   $('blocks').innerHTML = groups.map(g => {
-    const isLow = g === lowest && gap >= 0.005;
+    const isLow = !unsteady && g === lowest && gap >= 0.005;
     const cellsHtml = g.part.map((v, k) => {
       const idx = g.start + k;
       const bal = idx < 32 && ((state.balance >>> idx) & 1) ? ' bal' : '';
@@ -1028,7 +1062,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 14 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 15 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1520,6 +1554,9 @@ function renderRide() {
     if (st.min < 2.9) warns.push('有电芯电压偏低（' + st.min.toFixed(2) + ' V），请尽快停车充电');
   }
   view.diffMv = ride.diffMv;
+  view.diffHeld = s.sync === false;
+  put('rDiffLbl', s.sync === false ? '压差（等电流稳定）'
+    : s.sync && cur !== undefined ? (Math.abs(cur) < 1 ? '压差（静止）' : '压差（带负载）') : '压差');
   put('rDiff', ride.diffMv === null ? '--' : ride.diffMv.toFixed(0) + ' mV');
   if (s.temps && s.temps.length) {
     const tMax = Math.max(...s.temps);
@@ -1643,7 +1680,7 @@ function pipDraw() {
   // 中间一行三项
   const items = [
     showSpeed ? ['功率', wattsText + ' W'] : ['车速', '--'],
-    ['压差', has(v.diffMv) ? v.diffMv.toFixed(0) + ' mV' : '--'],
+    [v.diffHeld ? '压差（等稳定）' : '压差', has(v.diffMv) ? v.diffMv.toFixed(0) + ' mV' : '--'],
     ['里程', has(v.km) ? v.km.toFixed(2) + ' km' : '--']
   ];
   g.textAlign = 'left';
