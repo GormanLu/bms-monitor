@@ -159,6 +159,9 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 .ride-foot { margin-top: auto; text-align: center; }
 .ride-foot button { background: #17202c; border-color: #2a3646; color: #c8d2de; }
 .ride-foot small { display: block; color: #6b7888; font-size: 12px; margin-top: 8px; }
+.ride-foot .btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+#pipCanvas { position: fixed; left: -9999px; top: 0; }
+#pipVideo { position: absolute; right: 0; bottom: 0; width: 2px; height: 2px; opacity: .01; pointer-events: none; }
 @media (min-width: 620px) and (orientation: landscape) {
   .ride-grid { grid-template-columns: repeat(4, 1fr); }
   .ride-main b { font-size: 84px; }
@@ -168,7 +171,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 12 版</small></h1>
+    <h1>电池监控<small>第 13 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -391,10 +394,16 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
     <div><small>预计还能跑</small><b id="rRange">--</b></div>
   </div>
   <div class="ride-foot">
-    <button id="btnRideGps">显示车速和里程</button>
+    <div class="btns">
+      <button id="btnRidePip">开小窗</button>
+      <button id="btnRideGps">关闭车速和里程</button>
+    </div>
+    <small id="rPipNote">小窗会浮在导航等其他应用上面。请在出发前、停着车的时候打开。</small>
     <small id="rGpsNote">车速和里程用手机定位计算，只在这台手机上使用，不会上传。骑车时请不要操作手机。</small>
   </div>
+  <video id="pipVideo" muted playsinline></video>
 </div>
+<canvas id="pipCanvas" width="640" height="360"></canvas>
 
 <div id="toast" role="status"></div>
 
@@ -638,7 +647,11 @@ function applyVendor() {
   s.cellCount = s.cells.length;
   s.fet = s.cycles = s.prodDate = s.swVer = s.balance = undefined;
   s.protect = 0;
-  if (s.complete) { recordSample(); sessUpdate(); }
+  // 五块是轮流上报的，前后差一两秒。油门在变的时候，各块其实是在不同电流下量的电压，
+  // 这时算出来的"压差"是假的（能到 0.1 V 以上），所以只在各块电流接近时才更新和记录压差。
+  const curs = list.map(m => m.current);
+  s.sync = list.length < 2 || Math.max(...curs) - Math.min(...curs) <= 3;
+  if (s.complete) { if (s.sync) recordSample(); sessUpdate(); }
   render();
   renderIr();
   renderRaw();
@@ -847,8 +860,10 @@ function render() {
   }
   if (st) {
     const d = $('diff');
-    d.textContent = st.diff.toFixed(3) + ' V';
-    d.classList.toggle('bad', st.diff > 0.03 && Math.abs(s.current || 0) < 1);
+    if (s.sync !== false) {                                 // 电流在变时保留上一次稳定的读数
+      d.textContent = st.diff.toFixed(3) + ' V';
+      d.classList.toggle('bad', st.diff > 0.03 && Math.abs(s.current || 0) < 1);
+    }
     $('maxV').textContent = st.max.toFixed(3) + ' V';
     $('minV').textContent = st.min.toFixed(3) + ' V';
     $('maxLbl').textContent = '最高（第 ' + (st.hi + 1) + ' 节）';
@@ -857,6 +872,7 @@ function render() {
     renderBlocks(s.cells, st);
   }
   if (s.socPct !== undefined) $('socBar').style.width = Math.max(0, Math.min(100, s.socPct)) + '%';
+  ride.dataAt = Date.now();
   renderRide();
 }
 // 把电芯按"块"分组：厂家格式按模块分，其他情况每 4 节一组。顺便算出最低的一块比其他块低多少。
@@ -1013,7 +1029,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 12 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 13 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1475,11 +1491,12 @@ function showTab(name) {
 document.querySelectorAll('nav.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.go); });
 
 // ---------- 骑行模式：全屏大字，只看不操作 ----------
-const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null };
+const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, diffMv: null, dataAt: 0, view: null };
 function renderRide() {
   if (!ride.on) return;
   const s = state, st = cellStats(s.cells);
   const put = (id, text) => { $(id).textContent = text; };
+  const view = { soc: s.socPct, watts: null, speed: null, km: null, diffMv: null, warn: '' };
   if (s.socPct !== undefined) {
     put('rSoc', s.socPct.toFixed(0) + '%');
     $('rSocBar').style.width = Math.max(0, Math.min(100, s.socPct)) + '%';
@@ -1488,19 +1505,23 @@ function renderRide() {
   const cur = s.liveCurrent !== undefined && s.modules ? s.liveCurrent : s.current;
   if (cur !== undefined && s.totalV !== undefined) {
     const watts = -cur * s.totalV;                          // 放电为正
+    view.watts = Math.abs(watts) < 10 ? 0 : watts;
     put('rPower', Math.abs(watts) < 10 ? '0' : Math.abs(watts).toFixed(0));
     put('rPowerLbl', watts < -10 ? '正在充电（瓦）' : '功率（瓦）');
     put('rCurrent', Math.abs(cur).toFixed(1) + ' A');
     put('rVolt', s.totalV.toFixed(1) + ' V');
   }
-  put('rSpeed', ride.speed === null ? '' : (ride.speed * 3.6).toFixed(0) + ' km/h');
+  if (ride.speed !== null) view.speed = ride.speed * 3.6;
+  put('rSpeed', ride.speed === null ? '' : view.speed.toFixed(0) + ' km/h');
   const warns = [];
   if (st) {
     put('rMinV', st.min.toFixed(3));
     put('rMinName', s.modules ? s.modules[Math.floor(st.lo / 4)].name : '第 ' + (st.lo + 1) + ' 节');
-    put('rDiff', (st.diff * 1000).toFixed(0) + ' mV');
+    if (s.sync !== false) ride.diffMv = st.diff * 1000;     // 油门在变时各块不是同一刻量的，保留上一次稳定的读数
     if (st.min < 2.9) warns.push('有电芯电压偏低（' + st.min.toFixed(2) + ' V），请尽快停车充电');
   }
+  view.diffMv = ride.diffMv;
+  put('rDiff', ride.diffMv === null ? '--' : ride.diffMv.toFixed(0) + ' mV');
   if (s.temps && s.temps.length) {
     const tMax = Math.max(...s.temps);
     put('rTemp', tMax.toFixed(0) + ' °C');
@@ -1514,6 +1535,7 @@ function renderRide() {
     put('rUsed', (used >= 0 ? '' : '+') + Math.abs(used).toFixed(2) + ' Ah');
   } else put('rUsed', '--');
   const km = ride.dist / 1000;
+  if (ride.watch !== null) view.km = km;
   put('rDist', ride.watch === null ? '--' : km.toFixed(2) + ' km');
   if (usedWh !== null && usedWh > 5 && km >= 0.3 && s.remainAh !== undefined) {
     const eff = usedWh / km;
@@ -1522,15 +1544,20 @@ function renderRide() {
   } else { put('rEff', '--'); put('rRange', '--'); }
   $('rWarn').textContent = warns.join('；');
   $('rWarn').classList.toggle('show', warns.length > 0);
+  view.warn = warns.length ? warns[0] : '';
+  ride.view = view;
+  pipDraw();
 }
 async function rideStart() {
   if (!connected && !demoTimer) await connect();
   if (!connected && !demoTimer) return;                     // 没选设备或没连上，connect 里已经提示过
-  ride.on = true; ride.dist = 0; ride.last = null; ride.speed = null;
+  ride.on = true; ride.dist = 0; ride.last = null; ride.speed = null; ride.diffMv = null; ride.view = null;
   sess = null;                                              // 这一趟从零开始统计
   $('ride').hidden = false;
   document.body.style.overflow = 'hidden';
   keepAwake();
+  gpsStart();                                               // 车速和里程默认就开，不用再点
+  pipPrepare();
   renderRide();
 }
 function rideStop() {
@@ -1538,6 +1565,7 @@ function rideStop() {
   $('ride').hidden = true;
   document.body.style.overflow = '';
   gpsStop();
+  pipStop();
   renderSess();
 }
 function gpsStop() {
@@ -1565,19 +1593,147 @@ function onPosition(p) {
   if (c.speed !== null && c.speed >= 0) ride.speed = c.speed;
   renderRide();
 }
-function gpsToggle() {
-  if (ride.watch !== null) { gpsStop(); renderRide(); return; }
+function gpsStart() {
+  if (ride.watch !== null) return;
   if (!navigator.geolocation) { $('rGpsNote').textContent = '这个浏览器不支持定位，车速和里程显示不了。'; return; }
   ride.watch = navigator.geolocation.watchPosition(onPosition, e => {
     gpsStop(); renderRide();
     $('rGpsNote').textContent = '定位没有开成功（' + (e && e.message ? e.message : '未知原因') + '），车速和里程显示不了。其他数据不受影响。';
   }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
   $('btnRideGps').textContent = '关闭车速和里程';
+}
+function gpsToggle() {
+  if (ride.watch !== null) gpsStop(); else gpsStart();
   renderRide();
 }
+
+// ---------- 骑行小窗：把关键数据画成一段"视频"，借系统的画中画浮在导航等其他应用上面 ----------
+const pip = { timer: null, logged: false, ok: false };
+function pipSupport() {
+  const v = $('pipVideo'), c = $('pipCanvas');
+  return {
+    stream: typeof c.captureStream === 'function',
+    std: !!(document.pictureInPictureEnabled && v.requestPictureInPicture),
+    webkit: typeof v.webkitSetPresentationMode === 'function' && typeof v.webkitSupportsPresentationMode === 'function'
+  };
+}
+function pipActive() {
+  const v = $('pipVideo');
+  return document.pictureInPictureElement === v || v.webkitPresentationMode === 'picture-in-picture';
+}
+function pipDraw() {
+  if (!ride.on || !pip.ok) return;
+  const c = $('pipCanvas'), g = c.getContext('2d'), W = c.width, H = c.height, v = ride.view || {};
+  const has = x => x !== null && x !== undefined;
+  const font = (px, bold) => { g.font = (bold ? '700 ' : '400 ') + px + 'px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif'; };
+  g.fillStyle = '#05080d'; g.fillRect(0, 0, W, H);
+  g.textBaseline = 'alphabetic';
+  // 左上：电量
+  const soc = has(v.soc) ? v.soc : null;
+  const socColor = soc === null ? '#8b98a8' : soc <= 15 ? '#ef4444' : soc <= 30 ? '#f59e0b' : '#35c46b';
+  g.textAlign = 'left'; g.fillStyle = '#f3f6fa'; font(92, true);
+  g.fillText(soc === null ? '--' : soc.toFixed(0) + '%', 28, 112);
+  g.fillStyle = '#1b2532'; g.fillRect(28, 132, 250, 14);
+  if (soc !== null) { g.fillStyle = socColor; g.fillRect(28, 132, 250 * Math.max(0, Math.min(100, soc)) / 100, 14); }
+  // 右上：有车速显示车速，没有就显示功率
+  const showSpeed = has(v.speed), wattsText = has(v.watts) ? Math.abs(v.watts).toFixed(0) : '--';
+  g.textAlign = 'right';
+  g.fillStyle = '#f3f6fa'; font(112, true); g.fillText(showSpeed ? v.speed.toFixed(0) : wattsText, W - 28, 118);
+  g.fillStyle = '#8b98a8'; font(24); g.fillText(showSpeed ? '公里/小时' : v.watts < 0 ? '正在充电（瓦）' : '功率（瓦）', W - 28, 150);
+  // 中间一行三项
+  const items = [
+    showSpeed ? ['功率', wattsText + ' W'] : ['车速', '--'],
+    ['压差', has(v.diffMv) ? v.diffMv.toFixed(0) + ' mV' : '--'],
+    ['里程', has(v.km) ? v.km.toFixed(2) + ' km' : '--']
+  ];
+  g.textAlign = 'left';
+  items.forEach((it, i) => {
+    const x = 28 + i * 204;
+    g.fillStyle = '#8b98a8'; font(22); g.fillText(it[0], x, 206);
+    g.fillStyle = '#f3f6fa'; font(40, true); g.fillText(it[1], x, 254);
+  });
+  // 底部：报警，或者数据时间（和手机时间对一下，就知道小窗有没有卡住）
+  const age = ride.dataAt ? (Date.now() - ride.dataAt) / 1000 : null;
+  if (v.warn) {
+    g.fillStyle = '#b91c1c'; g.fillRect(0, H - 64, W, 64);
+    g.fillStyle = '#fff'; font(26, true); g.textAlign = 'center'; g.fillText(v.warn, W / 2, H - 24, W - 24);
+  } else {
+    font(22); g.textAlign = 'left';
+    if (age === null) { g.fillStyle = '#8b98a8'; g.fillText('等待电池数据…', 28, H - 26); }
+    else if (age > 8) { g.fillStyle = '#f59e0b'; g.fillText('已经 ' + age.toFixed(0) + ' 秒没有新数据', 28, H - 26); }
+    else { g.fillStyle = '#6b7888'; g.fillText('数据时间 ' + new Date(ride.dataAt).toTimeString().slice(0, 8), 28, H - 26); }
+  }
+}
+function pipNote(text) { $('rPipNote').textContent = text; }
+function pipPrepare() {                                     // 进骑行模式时先让这段"视频"播起来，点"开小窗"才能立刻弹出
+  const v = $('pipVideo'), c = $('pipCanvas'), sup = pipSupport(), yn = b => (b ? '有' : '没有');
+  if (!pip.logged) {
+    pip.logged = true;
+    log('小窗支持情况：画布转视频 ' + yn(sup.stream) + '，标准画中画 ' + yn(sup.std) + '，苹果画中画 ' + yn(sup.webkit));
+  }
+  pip.ok = sup.stream && (sup.std || sup.webkit);
+  $('btnRidePip').hidden = !pip.ok;
+  if (!pip.ok) { pipNote('这个浏览器不支持小窗（画中画）。'); return; }
+  pipDraw();
+  try {
+    if (!v.srcObject) v.srcObject = c.captureStream(5);
+    const p = v.play();
+    if (p && p.catch) p.catch(e => log('小窗视频没有播起来：' + errText(e)));
+  } catch (e) { log('小窗准备失败：' + errText(e)); }
+  if (!pip.timer) pip.timer = setInterval(pipDraw, 1000);   // 每秒重画一次，没有新数据时也能看出"停了多久"
+}
+function pipFail(e) {
+  log('小窗没有开成功：' + errText(e));
+  pipNote('小窗没有开成功。请到"工具"页点"上传日志"，把原因发给我看。');
+  toast('小窗没有开成功');
+}
+function pipToggle() {
+  const v = $('pipVideo'), sup = pipSupport();
+  try {
+    if (pipActive()) {
+      if (document.pictureInPictureElement === v) document.exitPictureInPicture();
+      else v.webkitSetPresentationMode('inline');
+      return;
+    }
+    const viaWebkit = () => {
+      if (sup.webkit && v.webkitSupportsPresentationMode('picture-in-picture')) { v.webkitSetPresentationMode('picture-in-picture'); return true; }
+      return false;
+    };
+    if (sup.std) {
+      v.requestPictureInPicture().catch(e => {
+        log('标准画中画被拒绝：' + errText(e));
+        try { if (!viaWebkit()) pipFail(e); } catch (e2) { pipFail(e2); }
+      });
+    } else if (!viaWebkit()) { pipFail('这段视频不支持画中画'); return; }
+    setTimeout(() => {                                      // 有的系统不报错，但小窗也不出来
+      if (ride.on && !pipActive()) { log('小窗：调用之后 2 秒仍然没有出现'); pipSync(); }
+    }, 2000);
+  } catch (e) { pipFail(e); }
+}
+function pipSync() {
+  const on = pipActive();
+  $('btnRidePip').textContent = on ? '关闭小窗' : '开小窗';
+  if (on) pipNote('小窗已打开，现在可以切到导航了。小窗左下角的"数据时间"应该跟手机时间一起走；如果它停了，说明切到后台后浏览器被暂停，回到本页就会恢复。');
+}
+function pipStop() {
+  const v = $('pipVideo');
+  try {
+    if (document.pictureInPictureElement === v) document.exitPictureInPicture();
+    else if (v.webkitPresentationMode === 'picture-in-picture') v.webkitSetPresentationMode('inline');
+  } catch (e) { /* 忽略 */ }
+  if (pip.timer) { clearInterval(pip.timer); pip.timer = null; }
+  try { v.pause(); } catch (e) { /* 忽略 */ }
+}
+['enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'].forEach(ev => {
+  $('pipVideo').addEventListener(ev, () => { log('小窗状态：' + (pipActive() ? '已打开' : '已关闭')); pipSync(); });
+});
+$('pipVideo').addEventListener('pause', () => {             // 在小窗上点了暂停也要接着播，不然数据就不动了
+  if (ride.on && pip.ok) { const p = $('pipVideo').play(); if (p && p.catch) p.catch(() => {}); }
+});
 $('btnRide').onclick = rideStart;
 $('btnRideExit').onclick = rideStop;
 $('btnRideGps').onclick = gpsToggle;
+$('btnRidePip').onclick = pipToggle;
 
 window.addEventListener('resize', () => drawChart(demoTimer ? demoHist : history));
 drawChart(history);
