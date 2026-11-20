@@ -177,7 +177,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 18 版</small></h1>
+    <h1>电池监控<small>第 19 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -406,7 +406,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
       <button id="btnRidePip">开小窗</button>
     </div>
     <small id="rPipNote">小窗会浮在导航等其他应用上面。请在出发前、停着车的时候打开。</small>
-    <small id="rGpsNote">车速和里程用手机定位计算，只在这台手机上使用，不会上传。里程只在骑车时累计，走路和推车不算。骑车时请不要操作手机。</small>
+    <small id="rGpsNote">车速和里程用手机定位计算，只在这台手机上使用，不会上传。里程从进入骑行模式开始一直累计。骑车时请不要操作手机。</small>
   </div>
   <video id="pipVideo" muted playsinline></video>
 </div>
@@ -1122,7 +1122,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 18 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 19 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1584,7 +1584,7 @@ function showTab(name) {
 document.querySelectorAll('nav.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.go); });
 
 // ---------- 骑行模式：全屏大字，只看不操作 ----------
-const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, diffMv: null, dataAt: 0, view: null, motorAt: 0 };
+const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
 function renderRide() {
   if (!ride.on) return;
   const s = state, st = cellStats(s.cells);
@@ -1600,7 +1600,6 @@ function renderRide() {
   if (cur !== undefined && s.totalV !== undefined) {
     const watts = -cur * s.totalV;                          // 放电为正
     view.watts = Math.abs(watts) < 10 ? 0 : watts;
-    if (cur < -2 && Date.now() - ride.dataAt < 3000) ride.motorAt = Date.now();   // 电机在出力（要是刚收到的数据才算）：用来判断是在骑车还是在走路
     put('rPower', Math.abs(watts) < 10 ? '0' : Math.abs(watts).toFixed(0));
     put('rPowerLbl', watts < -10 ? '正在充电（瓦）' : '功率（瓦）');
     put('rCurrent', Math.abs(cur).toFixed(1) + ' A');
@@ -1651,7 +1650,7 @@ function renderRide() {
 async function rideStart() {
   if (!connected && !demoTimer) await connect();
   if (!connected && !demoTimer) return;                     // 没选设备或没连上，connect 里已经提示过
-  ride.on = true; ride.dist = 0; ride.last = null; ride.speed = null; ride.diffMv = null; ride.view = null; ride.motorAt = 0;
+  ride.on = true; ride.dist = 0; ride.last = null; ride.speed = null; ride.diffMv = null; ride.view = null; ride.startAt = Date.now();
   sess = null;                                              // 这一趟从零开始统计
   $('ride').hidden = false;
   document.body.style.overflow = 'hidden';
@@ -1678,18 +1677,17 @@ function distanceM(a, b) {                                  // 两个经纬度�
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-const GPS_NOTE = '车速和里程用手机定位计算，只在这台手机上使用，不会上传。里程只在骑车时累计，走路和推车不算。骑车时请不要操作手机。';
+const GPS_NOTE = '车速和里程用手机定位计算，只在这台手机上使用，不会上传。里程从进入骑行模式开始一直累计。骑车时请不要操作手机。';
 function onPosition(p) {
   const c = p.coords;
   if ($('rGpsNote').textContent !== GPS_NOTE) $('rGpsNote').textContent = GPS_NOTE;
   if (c.accuracy > 40) return;                              // 定位太飘的点不要
+  if (p.timestamp > 1e12 && p.timestamp < ride.startAt - 2000) return;   // 进骑行模式之前的旧位置不要
   const here = { lat: c.latitude, lon: c.longitude };
   if (ride.last) {
     const d = distanceM(ride.last, here), dt = (p.timestamp - ride.lastT) / 1000;
     if (d >= 4 && dt > 0 && d / dt < 30) {                  // 挪动 4 米以上才算，超过 108 km/h 的跳点丢掉
-      // 走路、推车不计里程：要么这一段快过 7 km/h（比走路快），要么最近 5 秒电机出过力
-      if (d / dt >= 2 || Date.now() - ride.motorAt < 5000) ride.dist += d;
-      ride.last = here; ride.lastT = p.timestamp;
+      ride.dist += d; ride.last = here; ride.lastT = p.timestamp;   // 进了骑行模式就一直累计
       if (c.speed === null || c.speed < 0) ride.speed = d / dt;
     } else if (dt > 4) ride.speed = c.speed !== null && c.speed >= 0 ? c.speed : 0;
   } else { ride.last = here; ride.lastT = p.timestamp; }
