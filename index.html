@@ -171,7 +171,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 13 版</small></h1>
+    <h1>电池监控<small>第 14 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -396,7 +396,6 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
   <div class="ride-foot">
     <div class="btns">
       <button id="btnRidePip">开小窗</button>
-      <button id="btnRideGps">关闭车速和里程</button>
     </div>
     <small id="rPipNote">小窗会浮在导航等其他应用上面。请在出发前、停着车的时候打开。</small>
     <small id="rGpsNote">车速和里程用手机定位计算，只在这台手机上使用，不会上传。骑车时请不要操作手机。</small>
@@ -1029,7 +1028,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 13 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 14 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1571,7 +1570,6 @@ function rideStop() {
 function gpsStop() {
   if (ride.watch !== null && navigator.geolocation) navigator.geolocation.clearWatch(ride.watch);
   ride.watch = null; ride.speed = null;
-  $('btnRideGps').textContent = '显示车速和里程';
 }
 function distanceM(a, b) {                                  // 两个经纬度之间的距离（米）
   const rad = x => x * Math.PI / 180, R = 6371000;
@@ -1579,8 +1577,10 @@ function distanceM(a, b) {                                  // 两个经纬度�
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
+const GPS_NOTE = '车速和里程用手机定位计算，只在这台手机上使用，不会上传。骑车时请不要操作手机。';
 function onPosition(p) {
   const c = p.coords;
+  if ($('rGpsNote').textContent !== GPS_NOTE) $('rGpsNote').textContent = GPS_NOTE;
   if (c.accuracy > 40) return;                              // 定位太飘的点不要
   const here = { lat: c.latitude, lon: c.longitude };
   if (ride.last) {
@@ -1596,15 +1596,15 @@ function onPosition(p) {
 function gpsStart() {
   if (ride.watch !== null) return;
   if (!navigator.geolocation) { $('rGpsNote').textContent = '这个浏览器不支持定位，车速和里程显示不了。'; return; }
+  $('rGpsNote').textContent = GPS_NOTE;
   ride.watch = navigator.geolocation.watchPosition(onPosition, e => {
-    gpsStop(); renderRide();
-    $('rGpsNote').textContent = '定位没有开成功（' + (e && e.message ? e.message : '未知原因') + '），车速和里程显示不了。其他数据不受影响。';
+    if (e && e.code === 1) {                                // 没给定位权限：停掉，说明怎么重新打开
+      gpsStop(); renderRide();
+      $('rGpsNote').textContent = '没有拿到定位权限，车速和里程显示不了，其他数据不受影响。允许本页使用定位后，退出再进一次骑行模式即可。';
+    } else {                                                // 暂时没信号（车棚、楼下）：继续等，不关
+      $('rGpsNote').textContent = '暂时收不到定位信号，车速和里程先停着，有信号后会自动接上。';
+    }
   }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
-  $('btnRideGps').textContent = '关闭车速和里程';
-}
-function gpsToggle() {
-  if (ride.watch !== null) gpsStop(); else gpsStart();
-  renderRide();
 }
 
 // ---------- 骑行小窗：把关键数据画成一段"视频"，借系统的画中画浮在导航等其他应用上面 ----------
@@ -1732,7 +1732,6 @@ $('pipVideo').addEventListener('pause', () => {             // 在小窗上点�
 });
 $('btnRide').onclick = rideStart;
 $('btnRideExit').onclick = rideStop;
-$('btnRideGps').onclick = gpsToggle;
 $('btnRidePip').onclick = pipToggle;
 
 window.addEventListener('resize', () => drawChart(demoTimer ? demoHist : history));
