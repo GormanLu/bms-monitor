@@ -185,7 +185,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 22 版</small></h1>
+    <h1>电池监控<small>第 23 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -806,6 +806,8 @@ function renderSess() {
     ['平均车速（不算停车）', rs.moveAvg === null ? '--' : rs.moveAvg.toFixed(1) + ' km/h'],
     ['平均车速（连停车一起算）', rs.avg === null ? '--' : rs.avg.toFixed(1) + ' km/h'],
     ['最高车速', rs.max.toFixed(0) + ' km/h']);
+  if (rs && rs.chk) rows.push(['车速自检：' + chkText(rs.chk), '×' + rs.chk.k.toFixed(2)]);
+  else if (rs && rs.noNat) rows.push(['车速来源：系统没有直接给车速，是按位置变化算的', '']);
   $('sessTable').innerHTML = rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
 }
 $('btnSessReset').onclick = () => { sess = null; renderSess(); toast('已重新开始统计。'); };
@@ -1210,7 +1212,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 22 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 23 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1672,7 +1674,7 @@ function showTab(name) {
 document.querySelectorAll('nav.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.go); });
 
 // ---------- 骑行模式：全屏大字，只看不操作 ----------
-const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, speedAt: 0, fixAt: 0, cbAt: 0, fixes: [], prevFix: null, prevSpeed: null, vMax: 0, moveS: 0, firstT: 0, lastFixT: 0, gps: null, tick: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
+const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, speedAt: 0, fixAt: 0, cbAt: 0, fixes: [], prevFix: null, prevSpeed: null, vMax: 0, moveS: 0, firstT: 0, lastFixT: 0, cal: null, fixN: 0, natN: 0, gps: null, tick: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
 function renderRide() {
   if (!ride.on) return;
   const s = state, st = cellStats(s.cells), now = Date.now();
@@ -1749,7 +1751,15 @@ function rideStats() {
     avg: total > 0 ? ride.dist / total * 3.6 : null,                 // 连停车的时间一起算
     moveAvg: ride.moveS > 10 ? ride.dist / ride.moveS * 3.6 : null,  // 只算在走的时间
     max: ride.vMax * 3.6,
+    // 车速自检：同样的路段，按系统车速推算走了多远、按定位位置量出来走了多远
+    chk: ride.cal && ride.cal.tripPos >= 300 && ride.cal.tripDop > 0 ? { pos: ride.cal.tripPos, dop: ride.cal.tripDop, k: ride.cal.tripPos / ride.cal.tripDop } : null,
+    noNat: ride.fixN > 20 && ride.natN < ride.fixN / 2,              // 系统多数时候没有直接给车速
   };
+}
+function chkText(chk) {
+  const pct = Math.abs((chk.k - 1) * 100).toFixed(0);
+  return Math.abs(chk.k - 1) < 0.03 ? '系统给的车速和实际位移对得上（差 ' + pct + '%）'
+    : '系统给的车速比实际位移偏' + (chk.k > 1 ? '低 ' : '高 ') + pct + '%，显示的车速已按实际位移校正';
 }
 function rideTick() {                                       // 每秒一次：定位断了要能看出来，顺便把定位信号的质量记进日志
   if (!ride.on) return;
@@ -1780,7 +1790,9 @@ function rideStop() {
   if (ride.tick) { clearInterval(ride.tick); ride.tick = null; }
   const rs = rideStats();
   if (rs) log('本次骑行：里程 ' + rs.km.toFixed(2) + ' km，用时 ' + rs.mins.toFixed(0) + ' 分钟，平均车速 ' + (rs.avg === null ? '--' : rs.avg.toFixed(1)) +
-    ' km/h（不算停车 ' + (rs.moveAvg === null ? '--' : rs.moveAvg.toFixed(1)) + '），最高车速 ' + rs.max.toFixed(1) + ' km/h');
+    ' km/h（不算停车 ' + (rs.moveAvg === null ? '--' : rs.moveAvg.toFixed(1)) + '），最高车速 ' + rs.max.toFixed(1) + ' km/h' +
+    (rs.chk ? '；车速自检：按系统车速推算 ' + rs.chk.dop.toFixed(0) + ' 米，按位置 ' + rs.chk.pos.toFixed(0) + ' 米，系数 ' + rs.chk.k.toFixed(3) : '') +
+    '；系统直接给车速 ' + ride.natN + '/' + ride.fixN + ' 次');
   gpsStop();
   pipStop();
   renderSess();
@@ -1812,12 +1824,33 @@ function gpsStatFlush(force) {
         (g.gapMax / 1000).toFixed(1) + ' 秒' +
         (g.lateN ? '，定位到手平均晚 ' + (g.late / g.lateN / 1000).toFixed(1) + ' 秒（最晚 ' + (g.lateMax / 1000).toFixed(1) + ' 秒）' : '') + (g.n ? '，精度 ' + g.accMin.toFixed(0) + '~' + g.accMax.toFixed(0) + ' 米' : '') +
         '，系统直接给车速 ' + g.nat + ' 次' + (g.nat ? '（平均 ' + kmh(g.natSum, g.nat) + '）' : '') + (g.calc ? '，按位移算平均 ' + kmh(g.calcSum, g.calc) : '') +
-        '；这段路程：按位置算 ' + g.chord.toFixed(0) + ' 米' + (g.nat ? '，按系统车速算 ' + g.byNat.toFixed(0) + ' 米' : ''));
+        '；这段路程：按位置算 ' + g.chord.toFixed(0) + ' 米' + (g.nat ? '，按系统车速算 ' + g.byNat.toFixed(0) + ' 米' : '') + (ride.cal && ride.cal.k !== null ? '；位移÷车速推算 = ' + ride.cal.k.toFixed(3) + (ride.cal.on ? '（正在校正）' : '（没有校正）') : ''));
   }
   gpsStatReset();
 }
+// 车速自检和校正。
+// 系统给的车速是按卫星信号的频率变化测的，反应快；但信号被遮挡（车棚、高楼）时，它可能整体偏低。
+// 位置的误差则是有上限的（十来米），走出几百米以后，位移基本就是真实路程。
+// 所以每走出 25 米左右，就拿这一段位移和"同一段时间里按系统车速推算的路程"配成一对攒起来，
+// 用"实际位移 ÷ 按车速推算的路程"当系数乘到车速上：反应还是系统车速那么快，长期平均值和实际位移对齐。
+// 一段取 25 米而不是更短，是因为定位每次会飘一两米，段越短，飘动占的份量越大，位移会被量长。
+// 两边相差不到 3% 就当作对得上，不去动它：这点差别在测量误差以内。
+// 拐弯的路段不用：直线位移比实际走的弯路短，拿来核对会把车速错误地往下调。
+function calAnchor(d) {
+  const c = ride.cal;
+  if (c.ok && c.seg > 0) {
+    c.list.push([d, c.seg]); c.pos += d; c.dop += c.seg; c.tripPos += d; c.tripDop += c.seg;
+    while (c.list.length > 1 && c.pos - c.list[0][0] >= 1500) { const o = c.list.shift(); c.pos -= o[0]; c.dop -= o[1]; }   // 只看最近 1.5 公里
+    if (c.pos >= 300) {                                     // 走出 300 米才开始用；差得离谱就不用
+      const k = c.pos / c.dop;
+      c.k = k >= 0.85 && k <= 1.2 ? k : null;
+      c.on = c.k !== null && Math.abs(c.k - 1) >= (c.on ? 0.02 : 0.035);   // 超过 3.5% 才开始校正，回到 2% 以内才停，免得来回切换
+    }
+  }
+  c.seg = 0; c.ok = true;
+}
 function onPosition(p) {
-  const c = p.coords, now = Date.now(), g = ride.gps;
+  const c = p.coords, now = Date.now(), g = ride.gps, cal = ride.cal;
   if (p.timestamp > 1e12 && p.timestamp < ride.startAt - 2000) return;   // 进骑行模式之前的旧位置不要
   if (g) {
     if (ride.cbAt) g.gapMax = Math.max(g.gapMax, now - ride.cbAt);
@@ -1832,6 +1865,16 @@ function onPosition(p) {
   if ($('rGpsNote').textContent !== GPS_NOTE) $('rGpsNote').textContent = GPS_NOTE;
   ride.fixAt = now;
   const here = { lat: c.latitude, lon: c.longitude, t: p.timestamp };
+  const nat = c.speed !== null && c.speed !== undefined && c.speed >= 0 ? c.speed : null;   // 系统直接给的车速（米/秒）
+  const pf = ride.prevFix, gap = pf ? (p.timestamp - pf.t) / 1000 : 0;                       // 和上一个定位点隔了几秒
+  ride.fixN++; if (nat !== null) ride.natN++;
+  // 按系统车速推算这一小段走了多远（停着时的零点几不算）
+  if (pf) {
+    if (nat !== null && pf.nat !== null && gap > 0 && gap <= 3) {
+      const dop = ((nat < 0.5 ? 0 : nat) + (pf.nat < 0.5 ? 0 : pf.nat)) / 2 * gap;
+      cal.seg += dop; if (g) g.byNat += dop;
+    } else cal.ok = false;                                  // 中间断过，或者系统没给车速：这一段不拿来核对
+  }
   if (ride.last) {
     const d = distanceM(ride.last, here), dt = (p.timestamp - ride.lastT) / 1000;
     // 里程：离上一个记录点超过 15 米（定位误差比这更大时，要超过误差）才把这一段加进去；超过 108 km/h 的跳点丢掉。
@@ -1842,27 +1885,34 @@ function onPosition(p) {
       if (g) g.chord += d;
     }
   } else { ride.last = here; ride.lastT = p.timestamp; }
-  // 车速。首选系统直接给的车速：它是按卫星信号的频率变化测的，导航软件用的也是这个来源，比用位置算准得多。
-  // 系统不给的时候，才用最近 3 秒走过的直线距离来算；这样算会慢一两秒，也更容易跳。
+  if (cal.last) {                                           // 核对车速用的位移：25 米一段（定位误差大时更长）
+    const dc = distanceM(cal.last, here), dtc = (p.timestamp - cal.lastT) / 1000;
+    if (dc >= Math.max(25, c.accuracy * 1.5) && dtc > 0 && dc / dtc < 30) {
+      // 只用直行的路段：这一段的方向和上一段差了 15 度以上，说明在拐弯，直线位移比实际走的路短，不拿来核对
+      const br = Math.atan2((here.lon - cal.last.lon) * Math.cos(here.lat * Math.PI / 180), here.lat - cal.last.lat);
+      let turn = cal.br === null ? Math.PI : Math.abs(br - cal.br);
+      if (turn > Math.PI) turn = 2 * Math.PI - turn;
+      if (turn > 0.26) cal.ok = false;
+      cal.br = br;
+      calAnchor(dc); cal.last = here; cal.lastT = p.timestamp;
+    }
+  } else { cal.last = here; cal.lastT = p.timestamp; }
+  // 系统不给车速的时候，用最近 3 秒走过的直线距离来算；这样算会慢一两秒，也更容易跳。
   ride.fixes.push(here);
   while (ride.fixes.length > 1 && here.t - ride.fixes[0].t > 3000) ride.fixes.shift();
   const first = ride.fixes[0], span = (here.t - first.t) / 1000;
   let calc = ride.fixes.length > 1 && span >= 1.5 ? distanceM(first, here) / span : null;
   if (calc !== null && calc >= 30) calc = null;
-  const nat = c.speed !== null && c.speed !== undefined && c.speed >= 0 ? c.speed : null;
-  const pf = ride.prevFix, gap = pf ? (p.timestamp - pf.t) / 1000 : 0;       // 和上一个定位点隔了几秒
   if (g) {
     g.n++; g.accMin = Math.min(g.accMin, c.accuracy); g.accMax = Math.max(g.accMax, c.accuracy);
     if (nat !== null) { g.nat++; g.natSum += nat; }
     if (calc !== null) { g.calc++; g.calcSum += calc; }
-    // 另一种算里程的办法：把系统给的车速按时间累加。先只记进日志，和上面"按位置算"的对比，看哪种更准
-    if (nat !== null && pf && pf.nat !== null && gap > 0 && gap <= 3) g.byNat += ((nat < 0.5 ? 0 : nat) + (pf.nat < 0.5 ? 0 : pf.nat)) / 2 * gap;
   }
   ride.prevFix = { t: p.timestamp, nat };
   // 停着时定位也会小幅飘动，不能把它当成车速：系统给的车速小于 0.5 米/秒当作 0；
   // 自己按位移算的，3 秒里挪动不到"定位误差的一半"（至少 3 米）也当作 0
   const still = nat !== null ? nat < 0.5 : calc !== null && calc * span < Math.max(3, c.accuracy / 2);
-  const v = nat !== null ? nat : calc;
+  const v = nat !== null ? nat * (cal.on ? cal.k : 1) : calc;             // 系统车速和实际位移对不上时，乘上校正系数
   if (v !== null) {
     ride.speed = still ? 0 : v; ride.speedAt = now;
     // 这一趟的统计：最高车速要连续两次都达到才算，免得被单独一次的跳动抬高；车速 2 km/h 以上的时间算"在走"
@@ -1879,6 +1929,7 @@ function gpsStart() {
   if (!navigator.geolocation) { $('rGpsNote').textContent = '这个浏览器不支持定位，车速和里程显示不了。'; return; }
   $('rGpsNote').textContent = GPS_NOTE;
   ride.fixes = []; ride.prevFix = null; ride.fixAt = 0; ride.cbAt = 0; ride.speedAt = 0;
+  ride.cal = { list: [], pos: 0, dop: 0, tripPos: 0, tripDop: 0, seg: 0, ok: true, k: null, on: false, last: null, lastT: 0, br: null }; ride.fixN = 0; ride.natN = 0;
   gpsStatReset();
   ride.watch = navigator.geolocation.watchPosition(onPosition, e => {
     if (e && e.code === 1) {                                // 没给定位权限：停掉，说明怎么重新打开
