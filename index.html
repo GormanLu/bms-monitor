@@ -59,7 +59,7 @@ label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; col
 .hero .soc { display: flex; align-items: baseline; gap: 10px; }
 .hero .soc b { font-size: 54px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
 .hero .soc span { font-size: 12px; opacity: .8; }
-/* 各块一览：每一列是一块电池，三行分别是电量、块内压差、温度 */
+/* 各块一览：每一列是一块电池，三行分别是电量、块内压差、温度；充电时多两行：每块的电流、最高一节的电压 */
 .soc-blocks { display: grid; gap: 3px 4px; align-items: baseline; margin: 0 0 14px; padding: 8px 10px 9px; border-radius: 12px; background: rgba(255, 255, 255, .12); font-variant-numeric: tabular-nums; }
 .soc-blocks:empty { display: none; }
 .soc-blocks span { text-align: center; font-size: 13px; font-weight: 600; white-space: nowrap; }
@@ -67,6 +67,8 @@ label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; col
 .soc-blocks .l { text-align: left; padding-right: 4px; }
 .soc-blocks .low { color: #ffd591; }
 .soc-blocks .f { grid-column: 1 / -1; text-align: left; font-size: 11px; font-weight: 400; opacity: .7; white-space: normal; margin-top: 2px; }
+.soc-blocks .st { font-size: 12.5px; font-weight: 600; opacity: 1; margin-top: 5px; }
+.soc-blocks .off { opacity: .5; }
 .ride .soc-blocks { margin: 0; background: #0f151d; border: 1px solid #1c2633; color: #c8d2de; }
 .ride .soc-blocks span { font-size: 15px; }
 .ride .soc-blocks .h, .ride .soc-blocks .l { font-size: 12px; }
@@ -185,7 +187,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 23 版</small></h1>
+    <h1>电池监控<small>第 24 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -197,7 +199,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
       <div class="soc-blocks" id="socBlocks"></div>
       <div class="trio">
         <div><small id="diffLbl">整组压差</small><b id="diff">--</b></div>
-        <div><small>电流</small><b id="current">--</b></div>
+        <div><small id="curLbl">电流</small><b id="current">--</b></div>
         <div><small>总电压</small><b id="totalV">--</b></div>
       </div>
     </section>
@@ -303,6 +305,11 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
         <button id="btnClear">清空记录</button>
       </div>
       <textarea id="csvBox" readonly></textarea>
+    </section>
+
+    <section class="card">
+      <h2>充电记录</h2>
+      <p class="note" id="chgInfo"></p>
     </section>
 
     <div class="row" style="margin-bottom:12px">
@@ -594,8 +601,88 @@ function rollGap(ids) {                                     // 返回估算压�
   const all = blocks.flatMap(b => b.cells.map(v => v + ROLL_R * (iref - b.cur)));
   return (Math.max(...all) - Math.min(...all)) * 1000;
 }
+// ---------- 充电观察 ----------
+// 这套电池是五块串联，每块各有自己的保护板和电流计。用户听说配套的充电器能"一块一块充满"：
+// 先充满的那一块自己停下来，其余几块接着充。要亲眼看出是不是这样，得看每一块自己量到的电流，和它最高的一节电压。
+// 怎么算"在充电"：某一块连续 3 次上报（约 15 秒）的电流都在 0.5 A 以上；只要有一块在放电（小于 −2 A）就不算，骑行模式里也不算。
+// 充电停下以后，这个状态还保留半小时，方便看清停下那一刻各块的电压和电量。
+// 每一块"进电 / 不进电"的状态要连续两次上报一致才改（进电：0.5 A 以上；不进电：0.2 A 以下），免得把一次跳动当真。
+const CHG_IN = 0.5, CHG_OFF = 0.2, CHG_KEEP = 1800000, CHG_KEY = 'bms-charge-v1';
+const chgNew = () => ({ up: {}, down: {}, st: {}, seen: {}, said: '', at: 0, recAt: 0, frameAt: 0, resumeAt: 0 });
+let chg = chgNew(), chgRec = [];
+try { chgRec = JSON.parse(localStorage.getItem(CHG_KEY) || '[]'); } catch (e) { chgRec = []; }
+function chgPush(id, cur, now) {
+  if (cur < -2 || ride.on) { if (chg.at) log('充电观察：' + (ride.on ? '进了骑行模式' : '出现放电') + '，结束'); chg = chgNew(); return; }
+  if (now - chg.frameAt > 10000) chg.resumeAt = now;        // 数据断过（刚连上，或者页面被系统暂停过）：先等各块重新报齐
+  chg.frameAt = now;
+  chg.up[id] = cur >= CHG_IN ? (chg.up[id] || 0) + 1 : 0;
+  chg.down[id] = cur < CHG_OFF ? (chg.down[id] || 0) + 1 : 0;
+  if (chg.up[id] >= 2) chg.st[id] = 'in';
+  else if (chg.down[id] >= 2) chg.st[id] = 'off';
+  if (chg.up[id] >= 3) chg.at = now;
+}
+const chgOn = () => chg.at > 0 && Date.now() - chg.at < CHG_KEEP;
+const chgName = m => m.name.replace('模块 ', '').replace('这一块（直连）', '直连');
+const chgAmp = cur => (Math.abs(cur) < CHG_OFF ? '0' : cur.toFixed(1));   // 0.2 A 以内是电流计的零点误差，写成 0
+function chgState() {                                       // 现在哪几块在进电，哪几块已经不进电
+  const now = Date.now(), list = state.modules || [];
+  const settling = now - chg.resumeAt < 15000;              // 数据刚恢复，各块还没重新报齐
+  // gone：别的块都在正常上报，只有它半分钟没有消息
+  const gone = settling ? [] : Object.values(modules).filter(m => now - m.at >= 30000);
+  const ins = list.filter(m => chg.st[m.id] === 'in'), offs = list.filter(m => chg.st[m.id] === 'off');
+  // moving：有的块最新一次读数和它已经确认的状态对不上，说明正在变（要连续两次才确认）
+  const moving = settling || list.some(m => !chg.st[m.id] || (chg.st[m.id] === 'in' && m.current < CHG_OFF) || (chg.st[m.id] === 'off' && m.current >= CHG_IN));
+  return { n: list.length, ins: ins.map(chgName), offs: offs.map(chgName), gone: gone.map(chgName), moving, split: ins.length > 0 && offs.length > 0 };
+}
+function chgText() {                                        // 一句话说清现在的状态；状态正在变的那几秒返回空
+  const c = chgState();
+  if (c.n < 2 || c.moving) return '';
+  const lost = c.gone.length ? c.gone.join('、') + ' 已经半分钟没有数据传来。' : '', rest = c.gone.length ? '其余 ' : '';
+  if (c.split) return lost + c.offs.join('、') + ' 已经不进电，' + c.ins.join('、') + ' 还在充。';
+  if (c.ins.length === c.n) return lost + rest + c.n + ' 块都在进电。';
+  if (c.offs.length === c.n) return lost + rest + c.n + ' 块都不进电了' + (c.gone.length ? '。' : '，充电已经停止。停充以后电压会自己回落一些，属于正常。');
+  return '';
+}
+// 充满还要多久：在还进电的几块里，找离充满最远的那一块，按它自己的电流算
+function chgEta() {
+  const ins = (state.modules || []).filter(m => m.current >= CHG_IN);
+  if (!ins.length) return null;
+  return Math.max(...ins.map(m => Math.max(0, m.nominalAh - m.remainAh) / m.current));
+}
+// 充电记录：充电时每分钟记一行每块的电流、电压、电量；哪一块开始进电或不进电了，当时立刻再记一行。
+// 存在这台手机的浏览器里，上传日志时一起带上。原始数据只留最近几十分钟，这份记录能把整个过程留下来。
+function chgRecord(now) {
+  const list = state.modules;
+  if (!list || !chgOn() || now - chg.resumeAt < 15000) return;
+  let flip = false;                                         // 有没有哪一块从进电变成不进电（或者反过来）
+  for (const m of list) {
+    const st = chg.st[m.id];
+    if (st && chg.seen[m.id] && chg.seen[m.id] !== st) flip = true;
+    if (st) chg.seen[m.id] = st;
+  }
+  const text = chgText();
+  if (text && text !== chg.said) {                          // 状态说明变了才写进日志，不重复写
+    chg.said = text;
+    log('充电观察：' + text + '各块电流 ' + list.map(m => chgName(m) + ' ' + m.current.toFixed(1)).join('，') + ' A');
+  }
+  if (!flip && now - chg.recAt < 60000) return;
+  chg.recAt = now;
+  const gone = Object.values(modules).filter(m => now - m.at >= 30000).map(m => chgName(m) + ' 没有数据');
+  chgRec.push(stamp(now) + ':' + String(new Date(now).getSeconds()).padStart(2, '0') + ',' + list.map(m =>
+    [chgName(m), m.current.toFixed(2), m.term.toFixed(2), Math.round(Math.max(...m.cells) * 1000), Math.round(Math.min(...m.cells) * 1000), m.soc, m.temps.join('/')].join(' ')).concat(gone).join(','));
+  if (chgRec.length > 720) chgRec = chgRec.slice(-720);
+  try { localStorage.setItem(CHG_KEY, JSON.stringify(chgRec)); } catch (e) { /* 存不下就只留在内存里 */ }
+  chgInfo();
+}
+function chgInfo() {
+  $('chgInfo').textContent = '充电时自动记：每分钟一行，记下每一块的电流、电压和电量；哪一块停了或者重新开始充，也会马上记一行。保存在这台手机的浏览器里，上传日志时一起带上。' +
+    (chgRec.length ? '现在有 ' + chgRec.length + ' 行，最近一行是 ' + chgRec[chgRec.length - 1].slice(5, 16) + '。' : '现在还没有记录。');
+}
+chgInfo();
+const chgCsv = () => ['时间,各块（名称 电流A 两端电压V 最高节mV 最低节mV 电量% 温度）'].concat(chgRec).join('\n');
 function resetVendor() {
   protocol = null; vx = []; modules = {}; summary = null; sess = null; curWin = []; volLast = {}; rollHist = {}; rollEma = null;
+  chg = chgNew();
   irRest = []; irLoad = []; irCache = null;
   state.modules = undefined; state.hold = undefined; state.sync = undefined; state.est = undefined;
   state.socFrom = undefined; state.meanAh = undefined;
@@ -643,7 +730,7 @@ function handleVendor(f) {
       // 块内压差（mV）：这一块自己的 4 节之间差多少。4 节是这块的保护板一起量的，骑车时也可信；
       // 只有电流突变的那一下会多出十几毫伏，这时沿用上一次的数
       gap: prev && now - prev.at < 8000 && Math.abs(current - prev.current) >= 5 ? prev.gap : gapNow,
-      soc: f[13] / 2,
+      soc: f[13] / 2, term: u(9) / 1000,                    // term：这一块两端的电压
       temps: [f[17] - 40, f[18] - 40],                      // 每块两个测温点
       nominalAh: u(39) / 100, remainAh: u(41) / 100,
       raw: f,
@@ -651,6 +738,7 @@ function handleVendor(f) {
     steadyPush(f[6], current, cells);
     rollPush(f[6], current, cells);
     state.liveCurrent = current;                            // 各块轮流上报，约每秒一次
+    chgPush(f[6], current, now);
   } else if (f[4] === 0x02 && f.length >= 30) {
     // 汇总帧。用实际数据核对过两件事：
     // ① 它的电流不是新量的，而是五块最新读数里绝对值最大的那个，所以不拿它当实时电流；
@@ -764,6 +852,7 @@ function applyVendor() {
     s.hold = { bn: blk.lowest ? blk.lowest.name : '', bg: blk.lowest ? Math.round(blk.gap * 1000) : '' };
   }
   if (s.complete) { if (s.sync) { recordSample(); irSample(); } sessUpdate(); }
+  chgRecord(now);
   render();
   renderIr();
   renderRaw();
@@ -944,27 +1033,37 @@ function parseCells(d) {
 // ---------- 显示 ----------
 const PROTECT = ['单体过压', '单体欠压', '整组过压', '整组欠压', '充电过温', '充电低温', '放电过温', '放电低温',
                  '充电过流', '放电过流', '短路保护', '采样芯片错误', '软件锁定开关'];
-// 各块一览：每块的电量、块内压差、温度。只连了一块或不是这种电池时返回空
+// 各块一览：每块的电量、块内压差、温度。只连了一块或不是这种电池时返回空。
+// withChg：充电时再带上每块的电流和最高一节的电压（只在总览页用，骑行页和小窗不用）
 const BLOCK_FOOT = '这里的压差是每块自己 4 节之间的差（mV），骑车时也准。橙色是电量最低的一块。';
-function blockRows() {
+const CHG_FOOT = '"电流"是每块自己量到的（A）；"最高"是这一块里电压最高的一节（V），充电时到 3.6 V 左右就是充满了。"压差"是每块自己 4 节之间的差（mV）。';
+function blockRows(withChg) {
   const m = state.modules;
   if (!m || m.length < 2) return [];
   const socs = m.map(x => x.soc), lo = Math.min(...socs), hi = Math.max(...socs);
+  const on = !!withChg && chgOn(), split = on && chgState().split;
   return m.map(x => ({
     name: x.name.replace('模块 ', ''),
     soc: x.soc % 1 ? x.soc.toFixed(1) : x.soc.toFixed(0),
     gap: x.gap,
     temp: x.temps[0] === x.temps[1] ? x.temps[0] + '°' : Math.min(...x.temps) + '/' + Math.max(...x.temps) + '°',
     low: x.soc === lo && lo < hi,
+    cur: on ? chgAmp(x.current) : null,
+    top: on ? Math.max(...x.cells).toFixed(3) : null,
+    off: split && chg.st[x.id] === 'off',                   // 别的块还在充，这一块已经不进电
   }));
 }
-function blocksFill(el, rows, foot) {
+function blocksFill(el, rows, foot, status) {
   const line = (label, cell) => '<span class="l">' + label + '</span>' + rows.map(cell).join('');
   const html = !rows.length ? '' :
     line('', r => '<span class="h">' + r.name + '</span>') +
     line('电量', r => '<span' + (r.low ? ' class="low"' : '') + '>' + r.soc + '%</span>') +
     line('压差', r => '<span>' + r.gap + '</span>') +
     line('温度', r => '<span>' + r.temp + '</span>') +
+    (rows[0].cur === null ? '' :
+      line('电流', r => '<span' + (r.off ? ' class="off"' : '') + '>' + r.cur + '</span>') +
+      line('最高', r => '<span' + (r.off ? ' class="off"' : '') + '>' + r.top + '</span>')) +
+    (status ? '<span class="f st">' + status + '</span>' : '') +
     (foot ? '<span class="f">' + foot + '</span>' : '');
   if (el.lastHtml === html) return;                         // 内容没变就不重画
   el.lastHtml = html;
@@ -989,6 +1088,7 @@ function render() {
     }
     $('totalV').textContent = s.totalV.toFixed(s.modules ? 2 : 1) + ' V';
     $('current').textContent = s.current.toFixed(2) + ' A';
+    $('curLbl').textContent = s.modules && chgOn() && chgState().split ? '电流（各块平均）' : '电流';
     $('cycles').textContent = or(s.cycles, v => v);
     $('tempLbl').textContent = s.modules ? '温度（最低 / 最高）' : '温度';
     $('temps').textContent = s.temps.length ? s.temps.map(t => t.toFixed(0) + '°').join(' / ') : '--';
@@ -998,6 +1098,9 @@ function render() {
     if (s.socFrom && s.rsoc !== undefined) notes.push('顶上的大数字取的是电量最低的一块（' + s.socFrom + '）：五块串联，哪一块先放空，整车就断电。保护板自己汇总的电量是 ' + s.rsoc +
       '%，它的算法是"最低的一块放空算 0%，最高的一块充满算 100%"，所以两个数会一起到 0。各块的电量是各自的保护板数出来的，本身有几个点的误差。');
     if (s.temps.length && Math.min(...s.temps) <= 2) notes.push('电池温度已经接近 0 °C：磷酸铁锂在 0 °C 以下充电会伤电池，骑车放电不受影响。');
+    if (s.modules && chgOn() && st && st.diff > 0.03) notes.push(chgState().ins.length
+      ? '正在充电：磷酸铁锂充到最后一小段时，电量只差一点，电压就会差很多，压差到 0.1～0.3 V 都常见。各块是否一致，要等充完、静置几小时以后再看。'
+      : '刚停充：各块停下的时间有先有后，先停的电压已经回落，后停的还在高位，这时压差大是正常的，静置几小时以后再看。');
     $('protect').textContent = notes.join('');
     $('remainLbl').textContent = s.socFrom ? '剩余容量（最低块）' : '剩余容量';
     $('fullLbl').textContent = s.modules ? '标称容量（每块）' : '满电容量';
@@ -1014,20 +1117,22 @@ function render() {
     $('swVer').textContent = or(s.swVer, v => v);
     const hm = h => (h >= 100 ? '超过 99 小时' : Math.floor(h) + ' 小时 ' + Math.round((h % 1) * 60) + ' 分');
     if (s.current <= -0.5) { $('etaLbl').textContent = '按现在的电流还能用'; $('eta').textContent = hm(s.remainAh / -s.current); }
+    else if (s.modules && chgOn() && chgEta() !== null) { $('etaLbl').textContent = '按现在的电流充满还要'; $('eta').textContent = hm(chgEta()); }
     else if (s.current >= 0.5) { $('etaLbl').textContent = '按现在的电流充满还要'; $('eta').textContent = hm(Math.max(0, s.nominalAh - s.remainAh) / s.current); }
     else { $('etaLbl').textContent = '预计时间（电流太小）'; $('eta').textContent = '--'; }
     renderSwitches();
   }
   if (st) {
-    const d = $('diff');
-    if (s.sync !== false) {                                 // 电流在变时保留上一次稳定的读数
+    const d = $('diff'), chgSplit = !!s.modules && chgOn() && chgState().split;
+    // 充电末段是例外：各块电流不一样，但每一块自己是稳的，读数可以直接用
+    if (s.sync !== false || chgSplit) {                                 // 电流在变时保留上一次稳定的读数
       d.textContent = st.diff.toFixed(3) + ' V';
-      d.classList.toggle('bad', st.diff > 0.03 && Math.abs(s.current || 0) < 1);
+      d.classList.toggle('bad', st.diff > 0.03 && Math.abs(s.current || 0) < 1 && !chgOn());   // 充电末段压差大是正常的，不标红
     } else if (s.est !== null && s.est !== undefined) {     // 电流在变：显示估算值，前面加"≈"
       d.textContent = '≈' + (s.est / 1000).toFixed(3) + ' V';
       d.classList.remove('bad');
     }
-    $('diffLbl').textContent = s.sync !== false ? '整组压差' : s.est !== null && s.est !== undefined ? '整组压差（估算）' : '整组压差（等稳定）';
+    $('diffLbl').textContent = chgSplit ? '压差（充电末段）' : s.sync !== false ? '整组压差' : s.est !== null && s.est !== undefined ? '整组压差（估算）' : '整组压差（等稳定）';
     $('maxV').textContent = st.max.toFixed(3) + ' V';
     $('minV').textContent = st.min.toFixed(3) + ' V';
     $('maxLbl').textContent = '最高（第 ' + (st.hi + 1) + ' 节）';
@@ -1036,7 +1141,7 @@ function render() {
     renderBlocks(s.cells, st);
   }
   if (s.socPct !== undefined) $('socBar').style.width = Math.max(0, Math.min(100, s.socPct)) + '%';
-  blocksFill($('socBlocks'), blockRows(), BLOCK_FOOT);
+  blocksFill($('socBlocks'), blockRows(true), chgOn() ? CHG_FOOT : BLOCK_FOOT, chgOn() ? chgText() : '');
   ride.dataAt = Date.now();
   renderRide();
 }
@@ -1065,7 +1170,10 @@ function blockGroups(cells) {
 function renderBlocks(cells, st) {
   const { groups, lowest, gap } = blockGroups(cells);
   const unsteady = state.sync === false, hold = state.hold;
-  $('gapInfo').textContent = unsteady
+  const split = chgOn() && chgState().split;                // 充电末段：有的块已经不进电，各块电流本来就不一样
+  $('gapInfo').textContent = split
+    ? '各块的电流不一样：' + chgText() + '这时块与块之间的电压没有可比性，等充完、静置几小时以后再比。'
+    : unsteady
     ? '电流正在变化。五块是轮流上报的，这时各块不是在同一个电流下量的，比不出谁高谁低，等电流稳定 10 秒后再看。' +
       (state.est !== null && state.est !== undefined ? '按最近 30 秒的平均估算，压差约 ' + state.est.toFixed(0) + ' mV。' : '') +
       (hold && hold.bn ? '上一次电流稳定时：最低的是' + hold.bn + '，平均每节比其他几块低 ' + hold.bg + ' mV。' : '')
@@ -1090,7 +1198,7 @@ function renderBlocks(cells, st) {
     const relText = rel === null ? '' : Math.abs(rel) < 0.5 ? ' · 和其他块持平' : ' · 平均每节比其他块' + (rel < 0 ? '低 ' : '高 ') + Math.abs(rel).toFixed(0) + ' mV';
     const sub = g.mod
       ? '<div class="block-sub">电量 ' + g.mod.soc.toFixed(1) + '% · 剩余 ' + g.mod.remainAh.toFixed(2) + ' Ah · 温度 ' +
-        g.mod.temps.map(t => t + '°').join(' / ') + ' · 块内压差 ' + g.mod.gap + ' mV' + relText + '</div>'
+        g.mod.temps.map(t => t + '°').join(' / ') + ' · 块内压差 ' + g.mod.gap + ' mV' + (chgOn() ? ' · 电流 ' + chgAmp(g.mod.current) + ' A' : '') + relText + '</div>'
       : '';
     return '<div class="block"><div class="block-head' + (isLow ? ' lowest' : '') + '"><span>' + g.name +
       (isLow ? '（整组最低）' : '') + '</span><span>合计 ' + g.sum.toFixed(3) + ' V</span></div>' + sub + '<div class="cells">' +
@@ -1212,7 +1320,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 23 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 24 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1244,7 +1352,7 @@ async function uploadLog() {
   const day = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
   const name = day + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '.txt';
   const text = ['页面版本：' + PAGE_VERSION, '上传时间：' + day + ' ' + d.toTimeString().slice(0, 8), '',
-    '=== 未识别字节 ===', $('rawFields').textContent, '', '=== 调试日志 ===', logText(), '', '=== 快照 ===', snapCsv(), '', '=== 压差记录 ===', csvText()].join('\n');
+    '=== 未识别字节 ===', $('rawFields').textContent, '', '=== 调试日志 ===', logText(), '', '=== 快照 ===', snapCsv(), '', '=== 压差记录 ===', csvText(), '', '=== 充电记录 ===', chgCsv()].join('\n');
   $('btnUpload').disabled = $('btnUpload2').disabled = true;
   banner('正在上传…');
   try {
