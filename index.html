@@ -171,7 +171,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 16 版</small></h1>
+    <h1>电池监控<small>第 17 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -1001,6 +1001,13 @@ function renderBlocks(cells, st) {
 const HIST_KEY = 'bms-history-v1';
 let history = [], lastSample = 0;
 try { history = JSON.parse(localStorage.getItem(HIST_KEY) || '[]'); } catch (e) { history = []; }
+{
+  const real = history.filter(r => !(r.soc === 66 && r.i === -0.32 && !String(r.bn || '').startsWith('模块')));
+  if (real.length !== history.length) {
+    history = real;
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(history)); } catch (e) { /* 忽略 */ }
+  }
+}
 function recordSample() {
   const st = cellStats(state.cells);
   if (!st || demoTimer) { if (demoTimer) drawChart(demoSamples()); return; }
@@ -1097,7 +1104,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 16 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 17 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1538,8 +1545,8 @@ function startDemo() {
   resetVendor();
   gotFrame = true;
   banner('正在显示演示数据，不是你电池的真实数据。');
+  demoTimer = setInterval(demoTick, 2000);                // 先标记"演示中"再出第一组数据，否则它会被当成真实数据记下来
   demoTick();
-  demoTimer = setInterval(demoTick, 2000);
   setStatus('演示中');
 }
 function stopDemo() {
