@@ -171,7 +171,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 15 版</small></h1>
+    <h1>电池监控<small>第 16 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -548,9 +548,35 @@ function steadyNow(ids) {
   const span = curWin[curWin.length - 1].t - curWin[0].t;
   return span >= 7000 || Math.max(Math.abs(lo), Math.abs(hi)) < 2;   // 刚连上还没攒够 10 秒时，只有停着不动才直接算数
 }
+// ---------- 电流在变时的"估算压差" ----------
+// 真正同一瞬间的跨块压差，这块保护板给不出来。退一步：把每一块最近 30 秒的读数各自取平均，
+// 再按各块平均电流的差别折算一下（每节约 4.5 毫欧，是从实际骑行数据里量出来的），然后再比。
+// 取平均之后，"谁先报谁后报"造成的误差大部分互相抵消。用实际骑行数据验证：估出来的值
+// 多数在 20～50 mV，相邻两次只跳 1～2 mV；但它是估算，和真值可能差十几毫伏，所以只用来显示，不记进记录。
+const ROLL_MS = 30000, ROLL_R = 0.0045, ROLL_MIN = 4;
+let rollHist = {}, rollEma = null;
+function rollPush(id, cur, cells) {
+  const now = Date.now(), h = rollHist[id] || (rollHist[id] = []);
+  h.push({ t: now, cur, cells });
+  for (const k in rollHist) {
+    const a = rollHist[k];
+    while (a.length && now - a[0].t > ROLL_MS) a.shift();
+    if (!a.length) delete rollHist[k];
+  }
+}
+function rollGap(ids) {                                     // 返回估算压差（mV），数据不够时返回 null
+  if (ids.length < 2 || ids.some(id => !rollHist[id] || rollHist[id].length < ROLL_MIN)) return null;
+  const blocks = ids.map(id => {
+    const h = rollHist[id], n = h.length;
+    return { cur: h.reduce((s, x) => s + x.cur, 0) / n, cells: h[0].cells.map((_, c) => h.reduce((s, x) => s + x.cells[c], 0) / n) };
+  });
+  const iref = blocks.reduce((s, b) => s + b.cur, 0) / blocks.length;
+  const all = blocks.flatMap(b => b.cells.map(v => v + ROLL_R * (iref - b.cur)));
+  return (Math.max(...all) - Math.min(...all)) * 1000;
+}
 function resetVendor() {
-  protocol = null; vx = []; modules = {}; summary = null; sess = null; curWin = [];
-  state.modules = undefined; state.hold = undefined; state.sync = undefined;
+  protocol = null; vx = []; modules = {}; summary = null; sess = null; curWin = []; rollHist = {}; rollEma = null;
+  state.modules = undefined; state.hold = undefined; state.sync = undefined; state.est = undefined;
   showVendorMode(false);
 }
 function showVendorMode(on) {
@@ -596,6 +622,7 @@ function handleVendor(f) {
     };
     irPush(f[6], modules[f[6]].current, modules[f[6]].cells);
     steadyPush(f[6], modules[f[6]].current);
+    rollPush(f[6], modules[f[6]].current, modules[f[6]].cells);
     state.liveCurrent = modules[f[6]].current;     // 各块轮流上报，约每秒一次，比汇总数据更新得快
   } else if (f[4] === 0x02 && f.length >= 30) {
     summary = { soc: f[21] / 2, totalV: u(22) / 10, current: (u(24) - 30000) / 100, raw: f };
@@ -670,6 +697,10 @@ function applyVendor() {
   s.fet = s.cycles = s.prodDate = s.swVer = s.balance = undefined;
   s.protect = 0;
   s.sync = steadyNow(list.map(m => m.id));                  // 电流稳住了，跨块的压差才可信
+  const rough = s.sync ? null : rollGap(list.map(m => m.id));   // 没稳住时，用最近 30 秒的平均估一个
+  if (s.sync) rollEma = cellStats(s.cells).diff * 1000;         // 估算值从上一次实测值接着走，再做一点平滑，免得来回跳
+  else if (rough !== null) rollEma = rollEma === null ? rough : rollEma + 0.2 * (rough - rollEma);
+  s.est = rough === null ? null : rollEma;
   if (s.sync) {
     const blk = blockGroups(s.cells);
     s.hold = { bn: blk.lowest ? blk.lowest.name : '', bg: blk.lowest ? Math.round(blk.gap * 1000) : '' };
@@ -891,8 +922,11 @@ function render() {
     if (s.sync !== false) {                                 // 电流在变时保留上一次稳定的读数
       d.textContent = st.diff.toFixed(3) + ' V';
       d.classList.toggle('bad', st.diff > 0.03 && Math.abs(s.current || 0) < 1);
+    } else if (s.est !== null && s.est !== undefined) {     // 电流在变：显示估算值，前面加"≈"
+      d.textContent = '≈' + (s.est / 1000).toFixed(3) + ' V';
+      d.classList.remove('bad');
     }
-    $('diffLbl').textContent = s.sync === false ? '压差（等稳定）' : '压差';
+    $('diffLbl').textContent = s.sync !== false ? '压差' : s.est !== null && s.est !== undefined ? '压差（估算）' : '压差（等稳定）';
     $('maxV').textContent = st.max.toFixed(3) + ' V';
     $('minV').textContent = st.min.toFixed(3) + ' V';
     $('maxLbl').textContent = '最高（第 ' + (st.hi + 1) + ' 节）';
@@ -931,6 +965,7 @@ function renderBlocks(cells, st) {
   const unsteady = state.sync === false, hold = state.hold;
   $('gapInfo').textContent = unsteady
     ? '电流正在变化。五块是轮流上报的，这时各块不是在同一个电流下量的，比不出谁高谁低，等电流稳定 10 秒后再看。' +
+      (state.est !== null && state.est !== undefined ? '按最近 30 秒的平均估算，压差约 ' + state.est.toFixed(0) + ' mV。' : '') +
       (hold && hold.bn ? '上一次电流稳定时：最低的是' + hold.bn + '，平均每节比其他几块低 ' + hold.bg + ' mV。' : '')
     : lowest
     ? '最低的一块是' + lowest.name + '，平均每节比其他几块低 ' + (gap * 1000).toFixed(0) + ' mV。'
@@ -1062,7 +1097,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 15 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 16 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1553,11 +1588,13 @@ function renderRide() {
     if (s.sync !== false) ride.diffMv = st.diff * 1000;     // 油门在变时各块不是同一刻量的，保留上一次稳定的读数
     if (st.min < 2.9) warns.push('有电芯电压偏低（' + st.min.toFixed(2) + ' V），请尽快停车充电');
   }
-  view.diffMv = ride.diffMv;
-  view.diffHeld = s.sync === false;
-  put('rDiffLbl', s.sync === false ? '压差（等电流稳定）'
+  const est = s.sync === false && s.est !== null && s.est !== undefined ? s.est : null;
+  view.diffMv = est !== null ? est : ride.diffMv;           // 稳定时用实测值；电流在变时用估算值；都没有就保留上一次的
+  view.diffApprox = est !== null;
+  view.diffHeld = s.sync === false && est === null;
+  put('rDiffLbl', est !== null ? '压差（近30秒估算）' : s.sync === false ? '压差（等电流稳定）'
     : s.sync && cur !== undefined ? (Math.abs(cur) < 1 ? '压差（静止）' : '压差（带负载）') : '压差');
-  put('rDiff', ride.diffMv === null ? '--' : ride.diffMv.toFixed(0) + ' mV');
+  put('rDiff', view.diffMv === null ? '--' : (est !== null ? '≈' : '') + view.diffMv.toFixed(0) + ' mV');
   if (s.temps && s.temps.length) {
     const tMax = Math.max(...s.temps);
     put('rTemp', tMax.toFixed(0) + ' °C');
@@ -1680,7 +1717,7 @@ function pipDraw() {
   // 中间一行三项
   const items = [
     showSpeed ? ['功率', wattsText + ' W'] : ['车速', '--'],
-    [v.diffHeld ? '压差（等稳定）' : '压差', has(v.diffMv) ? v.diffMv.toFixed(0) + ' mV' : '--'],
+    [v.diffApprox ? '压差（估算）' : v.diffHeld ? '压差（等稳定）' : '压差', has(v.diffMv) ? (v.diffApprox ? '≈' : '') + v.diffMv.toFixed(0) + ' mV' : '--'],
     ['里程', has(v.km) ? v.km.toFixed(2) + ' km' : '--']
   ];
   g.textAlign = 'left';
