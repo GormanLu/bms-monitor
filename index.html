@@ -183,7 +183,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 20 版</small></h1>
+    <h1>电池监控<small>第 21 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -412,7 +412,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
       <button id="btnRidePip">开小窗</button>
     </div>
     <small id="rPipNote">小窗会浮在导航等其他应用上面。请在出发前、停着车的时候打开。</small>
-    <small id="rGpsNote">车速和里程用手机定位计算，里程从进入骑行模式开始一直累计。位置只留在这台手机上，不会上传；日志里只记定位信号好不好和平均车速，用来排查车速不准。骑车时请不要操作手机。</small>
+    <small id="rGpsNote">车速和里程用手机定位计算，里程从进入骑行模式开始一直累计。位置只留在这台手机上，不会上传；日志里只记定位信号好不好、平均车速和每分钟走了多远，用来排查车速和里程准不准。骑车时请不要操作手机。</small>
   </div>
   <video id="pipVideo" muted playsinline></video>
 </div>
@@ -1203,7 +1203,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 20 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 21 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1665,7 +1665,7 @@ function showTab(name) {
 document.querySelectorAll('nav.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.go); });
 
 // ---------- 骑行模式：全屏大字，只看不操作 ----------
-const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, speedAt: 0, fixAt: 0, cbAt: 0, fixes: [], gps: null, tick: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
+const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, speedAt: 0, fixAt: 0, cbAt: 0, fixes: [], prevFix: null, gps: null, tick: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
 function renderRide() {
   if (!ride.on) return;
   const s = state, st = cellStats(s.cells), now = Date.now();
@@ -1772,9 +1772,9 @@ function distanceM(a, b) {                                  // 两个经纬度�
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-const GPS_NOTE = '车速和里程用手机定位计算，里程从进入骑行模式开始一直累计。位置只留在这台手机上，不会上传；日志里只记定位信号好不好和平均车速，用来排查车速不准。骑车时请不要操作手机。';
+const GPS_NOTE = '车速和里程用手机定位计算，里程从进入骑行模式开始一直累计。位置只留在这台手机上，不会上传；日志里只记定位信号好不好、平均车速和每分钟走了多远，用来排查车速和里程准不准。骑车时请不要操作手机。';
 // 定位信号的质量：每分钟往日志里记一行（收到几次、最长隔多久、精度、系统有没有直接给车速），用来排查"车速和导航对不上"。不记位置。
-function gpsStatReset() { ride.gps = { t0: Date.now(), n: 0, hidden: 0, bad: 0, accMin: Infinity, accMax: 0, gapMax: 0, nat: 0, natSum: 0, calc: 0, calcSum: 0 }; }
+function gpsStatReset() { ride.gps = { t0: Date.now(), n: 0, hidden: 0, bad: 0, accMin: Infinity, accMax: 0, gapMax: 0, nat: 0, natSum: 0, calc: 0, calcSum: 0, chord: 0, byNat: 0 }; }
 function gpsStatFlush(force) {
   const g = ride.gps;
   if (!g) return;
@@ -1786,7 +1786,8 @@ function gpsStatFlush(force) {
       ? '定位：' + secs + ' 秒内一次都没收到（页面在' + (document.hidden ? '后台' : '前台') + '）'
       : '定位：' + secs + ' 秒内收到 ' + (g.n + g.bad) + ' 次（其中页面在后台时 ' + g.hidden + ' 次，太飘丢掉 ' + g.bad + ' 次），最长间隔 ' +
         (g.gapMax / 1000).toFixed(1) + ' 秒' + (g.n ? '，精度 ' + g.accMin.toFixed(0) + '~' + g.accMax.toFixed(0) + ' 米' : '') +
-        '，系统直接给车速 ' + g.nat + ' 次' + (g.nat ? '（平均 ' + kmh(g.natSum, g.nat) + '）' : '') + (g.calc ? '，按位移算平均 ' + kmh(g.calcSum, g.calc) : ''));
+        '，系统直接给车速 ' + g.nat + ' 次' + (g.nat ? '（平均 ' + kmh(g.natSum, g.nat) + '）' : '') + (g.calc ? '，按位移算平均 ' + kmh(g.calcSum, g.calc) : '') +
+        '；这段路程：按位置算 ' + g.chord.toFixed(0) + ' 米' + (g.nat ? '，按系统车速算 ' + g.byNat.toFixed(0) + ' 米' : ''));
   }
   gpsStatReset();
 }
@@ -1804,8 +1805,12 @@ function onPosition(p) {
   const here = { lat: c.latitude, lon: c.longitude, t: p.timestamp };
   if (ride.last) {
     const d = distanceM(ride.last, here), dt = (p.timestamp - ride.lastT) / 1000;
-    if (d >= 4 && dt > 0 && d / dt < 30) {                  // 挪动 4 米以上才算，超过 108 km/h 的跳点丢掉
+    // 里程：离上一个记录点超过 15 米（定位误差比这更大时，要超过误差）才把这一段加进去；超过 108 km/h 的跳点丢掉。
+    // 定位每次都会飘一两米。以前是挪 4 米就加一段，飘动也被算成了路程：骑车时多算百分之几，
+    // 走路和信号差时多算一两成，停着不动也会慢慢涨。攒够十几米再加，飘动的影响就小到可以不计。
+    if (d >= Math.max(15, c.accuracy) && dt > 0 && d / dt < 30) {
       ride.dist += d; ride.last = here; ride.lastT = p.timestamp;   // 进了骑行模式就一直累计
+      if (g) g.chord += d;
     }
   } else { ride.last = here; ride.lastT = p.timestamp; }
   // 车速。首选系统直接给的车速：它是按卫星信号的频率变化测的，导航软件用的也是这个来源，比用位置算准得多。
@@ -1820,16 +1825,23 @@ function onPosition(p) {
     g.n++; g.accMin = Math.min(g.accMin, c.accuracy); g.accMax = Math.max(g.accMax, c.accuracy);
     if (nat !== null) { g.nat++; g.natSum += nat; }
     if (calc !== null) { g.calc++; g.calcSum += calc; }
+    // 另一种算里程的办法：把系统给的车速按时间累加。先只记进日志，和上面"按位置算"的对比，看哪种更准
+    const pf = ride.prevFix, gap = pf ? (p.timestamp - pf.t) / 1000 : 0;
+    if (nat !== null && pf && pf.nat !== null && gap > 0 && gap <= 3) g.byNat += ((nat < 0.5 ? 0 : nat) + (pf.nat < 0.5 ? 0 : pf.nat)) / 2 * gap;
   }
+  ride.prevFix = { t: p.timestamp, nat };
+  // 停着时定位也会小幅飘动，不能把它当成车速：系统给的车速小于 0.5 米/秒当作 0；
+  // 自己按位移算的，3 秒里挪动不到"定位误差的一半"（至少 3 米）也当作 0
+  const still = nat !== null ? nat < 0.5 : calc !== null && calc * span < Math.max(3, c.accuracy / 2);
   const v = nat !== null ? nat : calc;
-  if (v !== null) { ride.speed = v < (nat !== null ? 0.5 : 1) ? 0 : v; ride.speedAt = now; }   // 停着时定位也会小幅飘动，太小的当作 0
+  if (v !== null) { ride.speed = still ? 0 : v; ride.speedAt = now; }
   renderRide();
 }
 function gpsStart() {
   if (ride.watch !== null) return;
   if (!navigator.geolocation) { $('rGpsNote').textContent = '这个浏览器不支持定位，车速和里程显示不了。'; return; }
   $('rGpsNote').textContent = GPS_NOTE;
-  ride.fixes = []; ride.fixAt = 0; ride.cbAt = 0; ride.speedAt = 0;
+  ride.fixes = []; ride.prevFix = null; ride.fixAt = 0; ride.cbAt = 0; ride.speedAt = 0;
   gpsStatReset();
   ride.watch = navigator.geolocation.watchPosition(onPosition, e => {
     if (e && e.code === 1) {                                // 没给定位权限：停掉，说明怎么重新打开
