@@ -59,6 +59,12 @@ label.check { display: flex; align-items: center; gap: 6px; font-size: 13px; col
 .hero .soc { display: flex; align-items: baseline; gap: 10px; }
 .hero .soc b { font-size: 54px; line-height: 1; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
 .hero .soc span { font-size: 12px; opacity: .8; }
+.soc-blocks { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin: 0 0 14px; }
+.soc-blocks:empty { display: none; }
+.soc-blocks div { background: rgba(255, 255, 255, .13); border-radius: 9px; padding: 5px 0 6px; text-align: center; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.soc-blocks small { display: block; font-size: 10px; font-weight: 400; opacity: .75; }
+.ride .soc-blocks { margin: 0; }
+.ride .soc-blocks div { background: #0f151d; border: 1px solid #1c2633; color: #c8d2de; font-size: 16px; }
 .socbar { height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .22); margin: 12px 0 14px; overflow: hidden; }
 .socbar i { display: block; height: 100%; width: 0; border-radius: 99px; background: #fff; transition: width .4s; }
 .trio { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -171,7 +177,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 17 版</small></h1>
+    <h1>电池监控<small>第 18 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -180,6 +186,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
     <section class="card hero">
       <div class="soc"><b id="soc">--</b><span id="socSub">连接后显示电量</span></div>
       <div class="socbar"><i id="socBar"></i></div>
+      <div class="soc-blocks" id="socBlocks"></div>
       <div class="trio">
         <div><small id="diffLbl">压差</small><b id="diff">--</b></div>
         <div><small>电流</small><b id="current">--</b></div>
@@ -377,6 +384,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
     <div class="ride-bar"><i id="rSocBar"></i></div>
     <button id="btnRideExit">退出</button>
   </div>
+  <div class="soc-blocks" id="rSocBlocks"></div>
   <div class="ride-main">
     <b id="rPower">--</b>
     <small id="rPowerLbl">功率（瓦）</small>
@@ -398,7 +406,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
       <button id="btnRidePip">开小窗</button>
     </div>
     <small id="rPipNote">小窗会浮在导航等其他应用上面。请在出发前、停着车的时候打开。</small>
-    <small id="rGpsNote">车速和里程用手机定位计算，只在这台手机上使用，不会上传。骑车时请不要操作手机。</small>
+    <small id="rGpsNote">车速和里程用手机定位计算，只在这台手机上使用，不会上传。里程只在骑车时累计，走路和推车不算。骑车时请不要操作手机。</small>
   </div>
   <video id="pipVideo" muted playsinline></video>
 </div>
@@ -876,6 +884,15 @@ function parseCells(d) {
 // ---------- 显示 ----------
 const PROTECT = ['单体过压', '单体欠压', '整组过压', '整组欠压', '充电过温', '充电低温', '放电过温', '放电低温',
                  '充电过流', '放电过流', '短路保护', '采样芯片错误', '软件锁定开关'];
+// 五块各自算的电量：[['A', '60%'], …]。只连了一块或不是这种电池时返回空
+function socBlocks() {
+  const m = state.modules;
+  if (!m || m.length < 2) return [];
+  return m.map(x => [x.name.replace('模块 ', ''), (x.soc % 1 ? x.soc.toFixed(1) : x.soc.toFixed(0)) + '%']);
+}
+function socBlocksHtml() {
+  return socBlocks().map(b => '<div><small>' + b[0] + '</small>' + b[1] + '</div>').join('');
+}
 function cellStats(cells) {
   if (!cells.length) return null;
   let hi = 0, lo = 0, sum = 0;
@@ -890,7 +907,7 @@ function render() {
     if (s.modules) {
       const socs = s.modules.map(m => m.soc);
       $('socSub').textContent = summary
-        ? '各块自己算的是 ' + Math.min(...socs).toFixed(1) + '%～' + Math.max(...socs).toFixed(1) + '%'
+        ? '整组电量'
         : '这块电池自己算的电量';
     } else {
       $('socSub').textContent = '剩余 ' + s.remainAh.toFixed(1) + ' / ' + s.nominalAh.toFixed(1) + ' Ah';
@@ -935,6 +952,7 @@ function render() {
     renderBlocks(s.cells, st);
   }
   if (s.socPct !== undefined) $('socBar').style.width = Math.max(0, Math.min(100, s.socPct)) + '%';
+  $('socBlocks').innerHTML = socBlocksHtml();
   ride.dataAt = Date.now();
   renderRide();
 }
@@ -1104,7 +1122,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 17 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 18 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1566,12 +1584,13 @@ function showTab(name) {
 document.querySelectorAll('nav.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.go); });
 
 // ---------- 骑行模式：全屏大字，只看不操作 ----------
-const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, diffMv: null, dataAt: 0, view: null };
+const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, diffMv: null, dataAt: 0, view: null, motorAt: 0 };
 function renderRide() {
   if (!ride.on) return;
   const s = state, st = cellStats(s.cells);
   const put = (id, text) => { $(id).textContent = text; };
-  const view = { soc: s.socPct, watts: null, speed: null, km: null, diffMv: null, warn: '' };
+  const view = { soc: s.socPct, watts: null, speed: null, km: null, diffMv: null, warn: '', socs: socBlocks() };
+  $('rSocBlocks').innerHTML = socBlocksHtml();
   if (s.socPct !== undefined) {
     put('rSoc', s.socPct.toFixed(0) + '%');
     $('rSocBar').style.width = Math.max(0, Math.min(100, s.socPct)) + '%';
@@ -1581,6 +1600,7 @@ function renderRide() {
   if (cur !== undefined && s.totalV !== undefined) {
     const watts = -cur * s.totalV;                          // 放电为正
     view.watts = Math.abs(watts) < 10 ? 0 : watts;
+    if (cur < -2 && Date.now() - ride.dataAt < 3000) ride.motorAt = Date.now();   // 电机在出力（要是刚收到的数据才算）：用来判断是在骑车还是在走路
     put('rPower', Math.abs(watts) < 10 ? '0' : Math.abs(watts).toFixed(0));
     put('rPowerLbl', watts < -10 ? '正在充电（瓦）' : '功率（瓦）');
     put('rCurrent', Math.abs(cur).toFixed(1) + ' A');
@@ -1631,7 +1651,7 @@ function renderRide() {
 async function rideStart() {
   if (!connected && !demoTimer) await connect();
   if (!connected && !demoTimer) return;                     // 没选设备或没连上，connect 里已经提示过
-  ride.on = true; ride.dist = 0; ride.last = null; ride.speed = null; ride.diffMv = null; ride.view = null;
+  ride.on = true; ride.dist = 0; ride.last = null; ride.speed = null; ride.diffMv = null; ride.view = null; ride.motorAt = 0;
   sess = null;                                              // 这一趟从零开始统计
   $('ride').hidden = false;
   document.body.style.overflow = 'hidden';
@@ -1658,7 +1678,7 @@ function distanceM(a, b) {                                  // 两个经纬度�
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-const GPS_NOTE = '车速和里程用手机定位计算，只在这台手机上使用，不会上传。骑车时请不要操作手机。';
+const GPS_NOTE = '车速和里程用手机定位计算，只在这台手机上使用，不会上传。里程只在骑车时累计，走路和推车不算。骑车时请不要操作手机。';
 function onPosition(p) {
   const c = p.coords;
   if ($('rGpsNote').textContent !== GPS_NOTE) $('rGpsNote').textContent = GPS_NOTE;
@@ -1667,7 +1687,9 @@ function onPosition(p) {
   if (ride.last) {
     const d = distanceM(ride.last, here), dt = (p.timestamp - ride.lastT) / 1000;
     if (d >= 4 && dt > 0 && d / dt < 30) {                  // 挪动 4 米以上才算，超过 108 km/h 的跳点丢掉
-      ride.dist += d; ride.last = here; ride.lastT = p.timestamp;
+      // 走路、推车不计里程：要么这一段快过 7 km/h（比走路快），要么最近 5 秒电机出过力
+      if (d / dt >= 2 || Date.now() - ride.motorAt < 5000) ride.dist += d;
+      ride.last = here; ride.lastT = p.timestamp;
       if (c.speed === null || c.speed < 0) ride.speed = d / dt;
     } else if (dt > 4) ride.speed = c.speed !== null && c.speed >= 0 ? c.speed : 0;
   } else { ride.last = here; ride.lastT = p.timestamp; }
@@ -1716,6 +1738,10 @@ function pipDraw() {
   g.fillText(soc === null ? '--' : soc.toFixed(0) + '%', 28, 112);
   g.fillStyle = '#1b2532'; g.fillRect(28, 132, 250, 14);
   if (soc !== null) { g.fillStyle = socColor; g.fillRect(28, 132, 250 * Math.max(0, Math.min(100, soc)) / 100, 14); }
+  if (v.socs && v.socs.length) {                            // 五块各自的电量
+    g.fillStyle = '#8b98a8'; font(20);
+    g.fillText(v.socs.map(b => b[0] + ' ' + b[1].replace('%', '')).join('   '), 28, 174, 420);
+  }
   // 右上：有车速显示车速，没有就显示功率
   const showSpeed = has(v.speed), wattsText = has(v.watts) ? Math.abs(v.watts).toFixed(0) : '--';
   g.textAlign = 'right';
