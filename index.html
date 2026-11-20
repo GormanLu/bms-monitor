@@ -168,6 +168,8 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 .ride-grid small { display: block; color: #8b98a8; font-size: 12px; }
 .ride-grid b { font-size: 26px; font-variant-numeric: tabular-nums; }
 .ride-grid em { font-style: normal; font-size: 12px; color: #8b98a8; margin-left: 4px; }
+.ride-grid em.line { display: block; margin: 2px 0 0; }
+.ride-grid em.line:empty { display: none; }
 .ride-foot { margin-top: auto; text-align: center; }
 .ride-foot button { background: #17202c; border-color: #2a3646; color: #c8d2de; }
 .ride-foot small { display: block; color: #6b7888; font-size: 12px; margin-top: 8px; }
@@ -183,7 +185,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 21 版</small></h1>
+    <h1>电池监控<small>第 22 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -403,7 +405,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
     <div><small>温度（最低~最高）</small><b id="rTemp">--</b></div>
     <div><small>总电压</small><b id="rVolt">--</b></div>
     <div><small>本次用电</small><b id="rUsed">--</b></div>
-    <div><small>里程</small><b id="rDist">--</b></div>
+    <div><small>里程</small><b id="rDist">--</b><em class="line" id="rSpeedStat"></em></div>
     <div><small>能耗（瓦时/公里）</small><b id="rEff">--</b></div>
     <div><small>预计还能跑</small><b id="rRange">--</b></div>
   </div>
@@ -412,7 +414,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
       <button id="btnRidePip">开小窗</button>
     </div>
     <small id="rPipNote">小窗会浮在导航等其他应用上面。请在出发前、停着车的时候打开。</small>
-    <small id="rGpsNote">车速和里程用手机定位计算，里程从进入骑行模式开始一直累计。位置只留在这台手机上，不会上传；日志里只记定位信号好不好、平均车速和每分钟走了多远，用来排查车速和里程准不准。骑车时请不要操作手机。</small>
+    <small id="rGpsNote">车速和里程用手机定位计算，里程从进入骑行模式开始一直累计。位置只留在这台手机上，不会上传；日志里只记定位信号好不好，以及车速、里程这些统计数字，用来排查准不准。骑车时请不要操作手机。</small>
   </div>
   <video id="pipVideo" muted playsinline></video>
 </div>
@@ -799,6 +801,11 @@ function renderSess() {
     ['最大压差（电流稳定时）', (sess.maxDiff * 1000).toFixed(0) + ' mV'],
     ['最高温度', sess.maxT + ' °C'],
   ];
+  const rs = rideStats();                                   // 骑行模式里用定位算出来的
+  if (rs) rows.push(['骑行里程', rs.km.toFixed(2) + ' km'],
+    ['平均车速（不算停车）', rs.moveAvg === null ? '--' : rs.moveAvg.toFixed(1) + ' km/h'],
+    ['平均车速（连停车一起算）', rs.avg === null ? '--' : rs.avg.toFixed(1) + ' km/h'],
+    ['最高车速', rs.max.toFixed(0) + ' km/h']);
   $('sessTable').innerHTML = rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
 }
 $('btnSessReset').onclick = () => { sess = null; renderSess(); toast('已重新开始统计。'); };
@@ -1203,7 +1210,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 21 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 22 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1665,7 +1672,7 @@ function showTab(name) {
 document.querySelectorAll('nav.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.go); });
 
 // ---------- 骑行模式：全屏大字，只看不操作 ----------
-const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, speedAt: 0, fixAt: 0, cbAt: 0, fixes: [], prevFix: null, gps: null, tick: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
+const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, speedAt: 0, fixAt: 0, cbAt: 0, fixes: [], prevFix: null, prevSpeed: null, vMax: 0, moveS: 0, firstT: 0, lastFixT: 0, gps: null, tick: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
 function renderRide() {
   if (!ride.on) return;
   const s = state, st = cellStats(s.cells), now = Date.now();
@@ -1720,6 +1727,8 @@ function renderRide() {
   const km = ride.dist / 1000;
   if (ride.watch !== null) view.km = km;
   put('rDist', ride.watch === null ? '--' : km.toFixed(2) + ' km');
+  const rs = rideStats();
+  put('rSpeedStat', rs ? '最高 ' + rs.max.toFixed(0) + ' · 平均 ' + (rs.moveAvg !== null ? rs.moveAvg : rs.avg).toFixed(0) + ' km/h' : '');
   // 能耗和续航：至少骑出 0.5 公里、用掉 0.15 Ah 才算，太短的话起步那几下占的份量太大
   if (usedAh !== null && usedAh >= 0.15 && km >= 0.5 && s.remainAh !== undefined) {
     put('rEff', (usedAh * sessVolt() / km).toFixed(0));
@@ -1730,6 +1739,17 @@ function renderRide() {
   view.warn = warns.length ? warns[0] : '';
   ride.view = view;
   pipDraw();
+}
+// 这一趟的里程和车速统计（退出骑行模式后还留着，到下一次进入才清零），可以拿去和导航软件的行程小结对比
+function rideStats() {
+  if (!ride.firstT || ride.dist < 100) return null;
+  const total = (ride.lastFixT - ride.firstT) / 1000;
+  return {
+    km: ride.dist / 1000, mins: total / 60,
+    avg: total > 0 ? ride.dist / total * 3.6 : null,                 // 连停车的时间一起算
+    moveAvg: ride.moveS > 10 ? ride.dist / ride.moveS * 3.6 : null,  // 只算在走的时间
+    max: ride.vMax * 3.6,
+  };
 }
 function rideTick() {                                       // 每秒一次：定位断了要能看出来，顺便把定位信号的质量记进日志
   if (!ride.on) return;
@@ -1743,6 +1763,7 @@ async function rideStart() {
   if (!connected && !demoTimer) await connect();
   if (!connected && !demoTimer) return;                     // 没选设备或没连上，connect 里已经提示过
   ride.on = true; ride.dist = 0; ride.last = null; ride.speed = null; ride.diffMv = null; ride.view = null; ride.startAt = Date.now();
+  ride.vMax = 0; ride.moveS = 0; ride.firstT = 0; ride.lastFixT = 0; ride.prevSpeed = null;
   sess = null;                                              // 这一趟从零开始统计
   $('ride').hidden = false;
   document.body.style.overflow = 'hidden';
@@ -1757,6 +1778,9 @@ function rideStop() {
   $('ride').hidden = true;
   document.body.style.overflow = '';
   if (ride.tick) { clearInterval(ride.tick); ride.tick = null; }
+  const rs = rideStats();
+  if (rs) log('本次骑行：里程 ' + rs.km.toFixed(2) + ' km，用时 ' + rs.mins.toFixed(0) + ' 分钟，平均车速 ' + (rs.avg === null ? '--' : rs.avg.toFixed(1)) +
+    ' km/h（不算停车 ' + (rs.moveAvg === null ? '--' : rs.moveAvg.toFixed(1)) + '），最高车速 ' + rs.max.toFixed(1) + ' km/h');
   gpsStop();
   pipStop();
   renderSess();
@@ -1772,9 +1796,9 @@ function distanceM(a, b) {                                  // 两个经纬度�
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-const GPS_NOTE = '车速和里程用手机定位计算，里程从进入骑行模式开始一直累计。位置只留在这台手机上，不会上传；日志里只记定位信号好不好、平均车速和每分钟走了多远，用来排查车速和里程准不准。骑车时请不要操作手机。';
+const GPS_NOTE = '车速和里程用手机定位计算，里程从进入骑行模式开始一直累计。位置只留在这台手机上，不会上传；日志里只记定位信号好不好，以及车速、里程这些统计数字，用来排查准不准。骑车时请不要操作手机。';
 // 定位信号的质量：每分钟往日志里记一行（收到几次、最长隔多久、精度、系统有没有直接给车速），用来排查"车速和导航对不上"。不记位置。
-function gpsStatReset() { ride.gps = { t0: Date.now(), n: 0, hidden: 0, bad: 0, accMin: Infinity, accMax: 0, gapMax: 0, nat: 0, natSum: 0, calc: 0, calcSum: 0, chord: 0, byNat: 0 }; }
+function gpsStatReset() { ride.gps = { t0: Date.now(), n: 0, hidden: 0, bad: 0, accMin: Infinity, accMax: 0, gapMax: 0, nat: 0, natSum: 0, calc: 0, calcSum: 0, chord: 0, byNat: 0, late: 0, lateN: 0, lateMax: 0 }; }
 function gpsStatFlush(force) {
   const g = ride.gps;
   if (!g) return;
@@ -1785,7 +1809,8 @@ function gpsStatFlush(force) {
     log(g.n + g.bad === 0
       ? '定位：' + secs + ' 秒内一次都没收到（页面在' + (document.hidden ? '后台' : '前台') + '）'
       : '定位：' + secs + ' 秒内收到 ' + (g.n + g.bad) + ' 次（其中页面在后台时 ' + g.hidden + ' 次，太飘丢掉 ' + g.bad + ' 次），最长间隔 ' +
-        (g.gapMax / 1000).toFixed(1) + ' 秒' + (g.n ? '，精度 ' + g.accMin.toFixed(0) + '~' + g.accMax.toFixed(0) + ' 米' : '') +
+        (g.gapMax / 1000).toFixed(1) + ' 秒' +
+        (g.lateN ? '，定位到手平均晚 ' + (g.late / g.lateN / 1000).toFixed(1) + ' 秒（最晚 ' + (g.lateMax / 1000).toFixed(1) + ' 秒）' : '') + (g.n ? '，精度 ' + g.accMin.toFixed(0) + '~' + g.accMax.toFixed(0) + ' 米' : '') +
         '，系统直接给车速 ' + g.nat + ' 次' + (g.nat ? '（平均 ' + kmh(g.natSum, g.nat) + '）' : '') + (g.calc ? '，按位移算平均 ' + kmh(g.calcSum, g.calc) : '') +
         '；这段路程：按位置算 ' + g.chord.toFixed(0) + ' 米' + (g.nat ? '，按系统车速算 ' + g.byNat.toFixed(0) + ' 米' : ''));
   }
@@ -1799,6 +1824,10 @@ function onPosition(p) {
     if (document.hidden) g.hidden++;
   }
   ride.cbAt = now;
+  if (g && p.timestamp > 1e12) {                            // 这个位置是多久以前量的：页面拿到它的时候已经晚了多少
+    const late = now - p.timestamp;
+    if (late >= 0 && late < 600000) { g.late += late; g.lateN++; g.lateMax = Math.max(g.lateMax, late); }
+  }
   if (c.accuracy > 40) { if (g) g.bad++; return; }          // 定位太飘的点不要
   if ($('rGpsNote').textContent !== GPS_NOTE) $('rGpsNote').textContent = GPS_NOTE;
   ride.fixAt = now;
@@ -1821,12 +1850,12 @@ function onPosition(p) {
   let calc = ride.fixes.length > 1 && span >= 1.5 ? distanceM(first, here) / span : null;
   if (calc !== null && calc >= 30) calc = null;
   const nat = c.speed !== null && c.speed !== undefined && c.speed >= 0 ? c.speed : null;
+  const pf = ride.prevFix, gap = pf ? (p.timestamp - pf.t) / 1000 : 0;       // 和上一个定位点隔了几秒
   if (g) {
     g.n++; g.accMin = Math.min(g.accMin, c.accuracy); g.accMax = Math.max(g.accMax, c.accuracy);
     if (nat !== null) { g.nat++; g.natSum += nat; }
     if (calc !== null) { g.calc++; g.calcSum += calc; }
     // 另一种算里程的办法：把系统给的车速按时间累加。先只记进日志，和上面"按位置算"的对比，看哪种更准
-    const pf = ride.prevFix, gap = pf ? (p.timestamp - pf.t) / 1000 : 0;
     if (nat !== null && pf && pf.nat !== null && gap > 0 && gap <= 3) g.byNat += ((nat < 0.5 ? 0 : nat) + (pf.nat < 0.5 ? 0 : pf.nat)) / 2 * gap;
   }
   ride.prevFix = { t: p.timestamp, nat };
@@ -1834,7 +1863,15 @@ function onPosition(p) {
   // 自己按位移算的，3 秒里挪动不到"定位误差的一半"（至少 3 米）也当作 0
   const still = nat !== null ? nat < 0.5 : calc !== null && calc * span < Math.max(3, c.accuracy / 2);
   const v = nat !== null ? nat : calc;
-  if (v !== null) { ride.speed = still ? 0 : v; ride.speedAt = now; }
+  if (v !== null) {
+    ride.speed = still ? 0 : v; ride.speedAt = now;
+    // 这一趟的统计：最高车速要连续两次都达到才算，免得被单独一次的跳动抬高；车速 2 km/h 以上的时间算"在走"
+    if (ride.prevSpeed !== null) ride.vMax = Math.max(ride.vMax, Math.min(ride.speed, ride.prevSpeed));
+    if (ride.speed > 0.56 && gap > 0 && gap <= 3) ride.moveS += gap;
+    ride.prevSpeed = ride.speed;
+  }
+  if (!ride.firstT) ride.firstT = p.timestamp;
+  ride.lastFixT = p.timestamp;
   renderRide();
 }
 function gpsStart() {
