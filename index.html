@@ -187,7 +187,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 24 版</small></h1>
+    <h1>电池监控<small>第 25 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -895,6 +895,7 @@ function renderSess() {
     ['平均车速（不算停车）', rs.moveAvg === null ? '--' : rs.moveAvg.toFixed(1) + ' km/h'],
     ['平均车速（连停车一起算）', rs.avg === null ? '--' : rs.avg.toFixed(1) + ' km/h'],
     ['最高车速', rs.max.toFixed(0) + ' km/h']);
+  if (rs && rs.blindKm >= 0.1) rows.push(['其中定位中断时走的（页面退到后台时没有数据）', rs.blindKm.toFixed(2) + ' km']);
   if (rs && rs.chk) rows.push(['车速自检：' + chkText(rs.chk), '×' + rs.chk.k.toFixed(2)]);
   else if (rs && rs.noNat) rows.push(['车速来源：系统没有直接给车速，是按位置变化算的', '']);
   $('sessTable').innerHTML = rows.map(r => '<tr><td>' + r[0] + '</td><td>' + r[1] + '</td></tr>').join('');
@@ -1320,7 +1321,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 24 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 25 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1782,7 +1783,7 @@ function showTab(name) {
 document.querySelectorAll('nav.tabs button').forEach(b => { b.onclick = () => showTab(b.dataset.go); });
 
 // ---------- 骑行模式：全屏大字，只看不操作 ----------
-const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, speedAt: 0, fixAt: 0, cbAt: 0, fixes: [], prevFix: null, prevSpeed: null, vMax: 0, moveS: 0, firstT: 0, lastFixT: 0, cal: null, fixN: 0, natN: 0, gps: null, tick: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
+const ride = { on: false, watch: null, dist: 0, last: null, lastT: 0, speed: null, speedAt: 0, fixAt: 0, cbAt: 0, fixes: [], prevFix: null, prevSpeed: null, vMax: 0, moveS: 0, blind: false, blindDist: 0, firstT: 0, lastFixT: 0, cal: null, fixN: 0, natN: 0, gps: null, tick: null, diffMv: null, dataAt: 0, view: null, startAt: 0 };
 function renderRide() {
   if (!ride.on) return;
   const s = state, st = cellStats(s.cells), now = Date.now();
@@ -1857,7 +1858,8 @@ function rideStats() {
   return {
     km: ride.dist / 1000, mins: total / 60,
     avg: total > 0 ? ride.dist / total * 3.6 : null,                 // 连停车的时间一起算
-    moveAvg: ride.moveS > 10 ? ride.dist / ride.moveS * 3.6 : null,  // 只算在走的时间
+    moveAvg: ride.moveS > 10 ? (ride.dist - ride.blindDist) / ride.moveS * 3.6 : null,   // 只算在走的时间；定位断过的路段，路程和时间都不算
+    blindKm: ride.blindDist / 1000,                                  // 定位中断时走的路程
     max: ride.vMax * 3.6,
     // 车速自检：同样的路段，按系统车速推算走了多远、按定位位置量出来走了多远
     chk: ride.cal && ride.cal.tripPos >= 300 && ride.cal.tripDop > 0 ? { pos: ride.cal.tripPos, dop: ride.cal.tripDop, k: ride.cal.tripPos / ride.cal.tripDop } : null,
@@ -1881,7 +1883,7 @@ async function rideStart() {
   if (!connected && !demoTimer) await connect();
   if (!connected && !demoTimer) return;                     // 没选设备或没连上，connect 里已经提示过
   ride.on = true; ride.dist = 0; ride.last = null; ride.speed = null; ride.diffMv = null; ride.view = null; ride.startAt = Date.now();
-  ride.vMax = 0; ride.moveS = 0; ride.firstT = 0; ride.lastFixT = 0; ride.prevSpeed = null;
+  ride.vMax = 0; ride.moveS = 0; ride.blind = false; ride.blindDist = 0; ride.firstT = 0; ride.lastFixT = 0; ride.prevSpeed = null;
   sess = null;                                              // 这一趟从零开始统计
   $('ride').hidden = false;
   document.body.style.overflow = 'hidden';
@@ -1899,6 +1901,7 @@ function rideStop() {
   const rs = rideStats();
   if (rs) log('本次骑行：里程 ' + rs.km.toFixed(2) + ' km，用时 ' + rs.mins.toFixed(0) + ' 分钟，平均车速 ' + (rs.avg === null ? '--' : rs.avg.toFixed(1)) +
     ' km/h（不算停车 ' + (rs.moveAvg === null ? '--' : rs.moveAvg.toFixed(1)) + '），最高车速 ' + rs.max.toFixed(1) + ' km/h' +
+    (rs.blindKm > 0 ? '；其中 ' + (rs.blindKm * 1000).toFixed(0) + ' 米是定位中断时走的' : '') +
     (rs.chk ? '；车速自检：按系统车速推算 ' + rs.chk.dop.toFixed(0) + ' 米，按位置 ' + rs.chk.pos.toFixed(0) + ' 米，系数 ' + rs.chk.k.toFixed(3) : '') +
     '；系统直接给车速 ' + ride.natN + '/' + ride.fixN + ' 次');
   gpsStop();
@@ -1983,6 +1986,9 @@ function onPosition(p) {
       cal.seg += dop; if (g) g.byNat += dop;
     } else cal.ok = false;                                  // 中间断过，或者系统没给车速：这一段不拿来核对
   }
+  // 定位断过（两次定位隔了 3 秒以上，多半是页面退到后台被系统暂停）：这段路程照样算进里程，
+  // 但中间没有计时，不能拿来算"不算停车的平均车速"，否则会把平均车速算得比最高车速还高
+  if (gap > 3) ride.blind = true;
   if (ride.last) {
     const d = distanceM(ride.last, here), dt = (p.timestamp - ride.lastT) / 1000;
     // 里程：离上一个记录点超过 15 米（定位误差比这更大时，要超过误差）才把这一段加进去；超过 108 km/h 的跳点丢掉。
@@ -1990,6 +1996,7 @@ function onPosition(p) {
     // 走路和信号差时多算一两成，停着不动也会慢慢涨。攒够十几米再加，飘动的影响就小到可以不计。
     if (d >= Math.max(15, c.accuracy) && dt > 0 && d / dt < 30) {
       ride.dist += d; ride.last = here; ride.lastT = p.timestamp;   // 进了骑行模式就一直累计
+      if (ride.blind) { ride.blindDist += d; ride.blind = false; }
       if (g) g.chord += d;
     }
   } else { ride.last = here; ride.lastT = p.timestamp; }
