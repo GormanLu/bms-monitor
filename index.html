@@ -187,7 +187,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 26 版</small></h1>
+    <h1>电池监控<small>第 27 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -448,7 +448,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const hex = bytes => Array.from(bytes, b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
 
 let device = null, chWrite = null, chNotify = null;
-let connected = false, demoTimer = null;
+let connected = false, demoTimer = null, devTail = '';      // devTail：选中的设备名称最后 4 位
 let rx = [], pending = null, misses = 0, gotFrame = false;
 const state = { cells: [] };
 
@@ -966,13 +966,21 @@ async function checkIn() {
   try {
     if (!connected) await connect();
     if (!connected) return;                    // 没选设备或连接失败，connect 里已经提示过
-    toast('已连接，正在等 20 节数据收齐…');
+    toast('已连接，正在等数据收齐…');
     const t0 = Date.now();
-    while (connected && !dataReady() && Date.now() - t0 < 30000) await sleep(500);
+    // 直连单独一块（它报的编号是 0x40）：只有 4 节，等不来 20 节。攒够 6 秒的数据就把日志传上去，不记快照
+    const single = () => !!(state.modules && state.modules.length === 1 && state.modules[0].id === 0x40);
+    while (connected && !dataReady() && !(single() && Date.now() - t0 > 6000) && Date.now() - t0 < 30000) await sleep(500);
+    if (!dataReady() && single()) {
+      const which = '你连的是单独一块电池' + (devTail ? '（名称结尾 ' + devTail + '）' : '') + '。';
+      const why = '没有记快照：快照要连名称结尾 01 的那一块、收齐 20 节才能记。';
+      if (!getToken()) { banner(which + '还没有保存上传密钥，所以没有上传。'); return; }
+      const ok = await uploadLog();
+      banner(which + (ok ? '这一块的数据已经上传。' : '上传没有成功，可以稍后再点"上传日志"。') + why);
+      return;
+    }
     if (!dataReady()) {
-      banner(state.modules && state.modules.length === 1 && state.modules[0].id === 0x40
-        ? '你连的是单独一块电池，没有记录。请点"断开"，再打卡一次，选名称结尾 01 的那一块。'
-        : '30 秒内没有收齐 20 节数据，没有记录。请靠近电池再试一次。');
+      banner('30 秒内没有收齐 20 节数据，没有记录。请靠近电池再试一次。');
       return;
     }
     if (state.sync === false) {                // 电流还在变：最多等 20 秒，等它稳住再记
@@ -1348,7 +1356,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 26 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 27 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1655,7 +1663,8 @@ async function connect() {
       : { filters: [{ services: [ADV_SERVICE] }], optionalServices };
     setStatus('选择设备…');
     device = await navigator.bluetooth.requestDevice(opts);
-    log('选中设备：名称结尾 ' + (device.name ? device.name.slice(-4) : '(无名称)'));   // 不记完整编号
+    devTail = device.name ? device.name.slice(-4) : '';
+    log('选中设备：名称结尾 ' + (devTail || '(无名称)'));   // 不记完整编号
     if (!hooked.has(device)) { hooked.add(device); device.addEventListener('gattserverdisconnected', onDisconnected); }
     setStatus('连接中…');
     wantConnected = true;
