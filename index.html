@@ -187,7 +187,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 25 版</small></h1>
+    <h1>电池监控<small>第 26 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -640,7 +640,8 @@ function chgText() {                                        // 一句话说清�
   const lost = c.gone.length ? c.gone.join('、') + ' 已经半分钟没有数据传来。' : '', rest = c.gone.length ? '其余 ' : '';
   if (c.split) return lost + c.offs.join('、') + ' 已经不进电，' + c.ins.join('、') + ' 还在充。';
   if (c.ins.length === c.n) return lost + rest + c.n + ' 块都在进电。';
-  if (c.offs.length === c.n) return lost + rest + c.n + ' 块都不进电了' + (c.gone.length ? '。' : '，充电已经停止。停充以后电压会自己回落一些，属于正常。');
+  if (c.offs.length === c.n) return lost + rest + c.n + ' 块都不进电了' + (c.gone.length ? '。' : '，充电已经停止。停充以后电压会自己回落一些，属于正常。') +
+    (chgShut().length ? chgShut().map(chgName).join('、') + ' 的保护板把充电关掉了。' : '');
   return '';
 }
 // 充满还要多久：在还进电的几块里，找离充满最远的那一块，按它自己的电流算
@@ -669,7 +670,8 @@ function chgRecord(now) {
   chg.recAt = now;
   const gone = Object.values(modules).filter(m => now - m.at >= 30000).map(m => chgName(m) + ' 没有数据');
   chgRec.push(stamp(now) + ':' + String(new Date(now).getSeconds()).padStart(2, '0') + ',' + list.map(m =>
-    [chgName(m), m.current.toFixed(2), m.term.toFixed(2), Math.round(Math.max(...m.cells) * 1000), Math.round(Math.min(...m.cells) * 1000), m.soc, m.temps.join('/')].join(' ')).concat(gone).join(','));
+    [chgName(m), m.current.toFixed(2), m.term.toFixed(2), Math.round(Math.max(...m.cells) * 1000), Math.round(Math.min(...m.cells) * 1000), m.soc, m.temps.join('/'), hex4(m.st) + '/' + m.balBits.toString(16).toUpperCase()].join(' ')).concat(gone)
+    .concat(summary ? ['汇总 ' + hex4(summary.flags).slice(2) + ' ' + summary.totalV.toFixed(1) + ' ' + summary.cellsV.toFixed(1)] : []).join(','));
   if (chgRec.length > 720) chgRec = chgRec.slice(-720);
   try { localStorage.setItem(CHG_KEY, JSON.stringify(chgRec)); } catch (e) { /* 存不下就只留在内存里 */ }
   chgInfo();
@@ -679,7 +681,7 @@ function chgInfo() {
     (chgRec.length ? '现在有 ' + chgRec.length + ' 行，最近一行是 ' + chgRec[chgRec.length - 1].slice(5, 16) + '。' : '现在还没有记录。');
 }
 chgInfo();
-const chgCsv = () => ['时间,各块（名称 电流A 两端电压V 最高节mV 最低节mV 电量% 温度）'].concat(chgRec).join('\n');
+const chgCsv = () => ['时间,各块（名称 电流A 两端电压V 最高节mV 最低节mV 电量% 温度 状态字/均衡位）,最后是汇总（状态 端口电压V 各节之和V）'].concat(chgRec).join('\n');
 function resetVendor() {
   protocol = null; vx = []; modules = {}; summary = null; sess = null; curWin = []; volLast = {}; rollHist = {}; rollEma = null;
   chg = chgNew();
@@ -709,6 +711,11 @@ function parseVendor() {
     handleVendor(vx.splice(0, total));
   }
 }
+const hex4 = v => v.toString(16).toUpperCase().padStart(4, '0');
+// 哪几块的保护板把充电关掉了（充满后的保护）
+const chgShut = () => (state.modules || []).filter(m => (m.st & 0x04) === 0);
+// 哪几块正在均衡，写成一句话
+const balText = () => { const n = (state.modules || []).filter(m => m.balBits).map(chgName); return n.length ? n.join('、') + ' 正在均衡。' : ''; };
 function handleVendor(f) {
   const u = i => (f[i] << 8) | f[i + 1];
   if (protocol !== 'vendor') {
@@ -722,6 +729,9 @@ function handleVendor(f) {
     const now = Date.now(), prev = modules[f[6]];
     const cells = [u(26), u(28), u(30), u(32)].map(v => v / 1000), current = (u(11) - 30000) / 100;
     const gapNow = Math.round((Math.max(...cells) - Math.min(...cells)) * 1000);
+    // 均衡：字节 38 的低 4 位，每位对应这一块的一节。2026-11-21 充电时见过 05 和 0A 交替出现（单数节、双数节轮流放电），
+    // 只出现在电压较高的四块上，最低的一块一直是 0。因为是交替的，把最近 12 秒里出现过的位合起来算"正在均衡"。
+    const balNow = f[38] & 0x0F, balKeep = prev && prev.balAt && now - prev.balAt < 12000 ? prev.balBits : 0;
     modules[f[6]] = {
       id: f[6], at: now,
       // 编号 0x41 起是主模块给各块排的号，0x50 是主模块自己；直接连某一块时它报的是 0x40
@@ -731,19 +741,27 @@ function handleVendor(f) {
       // 只有电流突变的那一下会多出十几毫伏，这时沿用上一次的数
       gap: prev && now - prev.at < 8000 && Math.abs(current - prev.current) >= 5 ? prev.gap : gapNow,
       soc: f[13] / 2, term: u(9) / 1000,                    // term：这一块两端的电压
+      // st：状态字（字节 14-15）。平时主模块是 004C、其余是 00CC；2026-11-21 第一次充满后主模块变成 0748，
+      // 同时整组端口电压比各节之和低了 0.4 V（充电开关关掉后，电流只能走开关管里的二极管，会掉这么多），
+      // 所以第 2 位（0x04）应当是"充电开关开着"。高字节的三位含义还没认出来，先原样记下。
+      st: (f[14] << 8) | f[15],
+      balBits: balKeep | balNow, balAt: balNow ? now : (prev ? prev.balAt : 0),
       temps: [f[17] - 40, f[18] - 40],                      // 每块两个测温点
       nominalAh: u(39) / 100, remainAh: u(41) / 100,
       raw: f,
     };
     steadyPush(f[6], current, cells);
     rollPush(f[6], current, cells);
+    if (prev && prev.st !== modules[f[6]].st) log('状态字变化：' + modules[f[6]].name + ' ' + hex4(prev.st) + ' → ' + hex4(modules[f[6]].st));
     state.liveCurrent = current;                            // 各块轮流上报，约每秒一次
     chgPush(f[6], current, now);
   } else if (f[4] === 0x02 && f.length >= 30) {
     // 汇总帧。用实际数据核对过两件事：
     // ① 它的电流不是新量的，而是五块最新读数里绝对值最大的那个，所以不拿它当实时电流；
     // ② 它的电量 = 最低块 ÷ (100 − (最高块 − 最低块))，也就是"最低的一块放空算 0%，最高的一块充满算 100%"。
-    summary = { soc: f[21] / 2, totalV: u(22) / 10, current: (u(24) - 30000) / 100, raw: f };
+    // 字节 22-23 是整组端口电压，28-29 是各节电压之和，平时两个一样；字节 20 是整组的状态，平时是 0，充满后见过 03 和 07
+    if (summary && summary.flags !== f[20]) log('状态字变化：汇总 ' + hex4(summary.flags).slice(2) + ' → ' + hex4(f[20]).slice(2));
+    summary = { soc: f[21] / 2, totalV: u(22) / 10, cellsV: u(28) / 10, flags: f[20], current: (u(24) - 30000) / 100, raw: f };
   } else return;
   applyVendor();
 }
@@ -825,7 +843,7 @@ function applyVendor() {
   s.modules = list;
   s.cells = list.flatMap(m => m.cells);
   const sum = s.cells.reduce((a, b) => a + b, 0);
-  s.complete = !!summary && Math.abs(sum - summary.totalV) < 1;      // 五块都收到了才算完整
+  s.complete = !!summary && (Math.abs(sum - summary.totalV) < 1 || Math.abs(sum - summary.cellsV) < 1);   // 五块都收到了才算完整
   s.totalV = s.complete || !summary ? sum : summary.totalV;
   // 电流：五块串在一起，流过的是同一个电流；五个传感器各有零点几安的误差，取平均最准
   s.current = avg(list.map(m => m.current));
@@ -841,6 +859,7 @@ function applyVendor() {
   s.temps = [Math.min(...temps), Math.max(...temps)];
   s.cellCount = s.cells.length;
   s.fet = s.cycles = s.prodDate = s.swVer = s.balance = undefined;
+  s.balance = list.reduce((acc, m, k) => acc | (m.balBits << (k * 4)), 0) >>> 0;   // 电芯页按这个给正在均衡的节做标记
   s.protect = 0;
   s.sync = steadyNow(list.map(m => m.id));                  // 电流稳住了，跨块的压差才可信
   const rough = s.sync ? null : rollGap(list.map(m => m.id));   // 没稳住时，用最近 30 秒的平均估一个
@@ -1099,6 +1118,7 @@ function render() {
     if (s.socFrom && s.rsoc !== undefined) notes.push('顶上的大数字取的是电量最低的一块（' + s.socFrom + '）：五块串联，哪一块先放空，整车就断电。保护板自己汇总的电量是 ' + s.rsoc +
       '%，它的算法是"最低的一块放空算 0%，最高的一块充满算 100%"，所以两个数会一起到 0。各块的电量是各自的保护板数出来的，本身有几个点的误差。');
     if (s.temps.length && Math.min(...s.temps) <= 2) notes.push('电池温度已经接近 0 °C：磷酸铁锂在 0 °C 以下充电会伤电池，骑车放电不受影响。');
+    if (s.modules && chgShut().length) notes.push(chgShut().map(m => m.name).join('、') + ' 的保护板现在把充电关着：这是充满以后的保护。这时插上充电器充不进电，一般要骑掉一些电，它才会重新打开。');
     if (s.modules && chgOn() && st && st.diff > 0.03) notes.push(chgState().ins.length
       ? '正在充电：磷酸铁锂充到最后一小段时，电量只差一点，电压就会差很多，压差到 0.1～0.3 V 都常见。各块是否一致，要等充完、静置几小时以后再看。'
       : '刚停充：各块停下的时间有先有后，先停的电压已经回落，后停的还在高位，这时压差大是正常的，静置几小时以后再看。');
@@ -1142,7 +1162,7 @@ function render() {
     renderBlocks(s.cells, st);
   }
   if (s.socPct !== undefined) $('socBar').style.width = Math.max(0, Math.min(100, s.socPct)) + '%';
-  blocksFill($('socBlocks'), blockRows(true), chgOn() ? CHG_FOOT : BLOCK_FOOT, chgOn() ? chgText() : '');
+  blocksFill($('socBlocks'), blockRows(true), chgOn() ? CHG_FOOT : BLOCK_FOOT, chgOn() ? chgText() + balText() : '');
   ride.dataAt = Date.now();
   renderRide();
 }
@@ -1205,6 +1225,13 @@ function renderBlocks(cells, st) {
       (isLow ? '（整组最低）' : '') + '</span><span>合计 ' + g.sum.toFixed(3) + ' V</span></div>' + sub + '<div class="cells">' +
       cellsHtml + '</div></div>';
   }).join('');
+  if (state.modules) {                                      // 这种电池见过的均衡是整块一起的，按块来说
+    const names = state.modules.filter(m => m.balBits).map(chgName);
+    $('balInfo').textContent = names.length
+      ? '正在均衡的块：' + names.join('、') + '（在放掉一点电）。目前见过的情况是：充电时电压较高的几块一起均衡，最低的一块不均衡。'
+      : '现在没有均衡。目前只在充电、而且电流在 7 A 左右时见过均衡，8 A 时没有见过。';
+    return;
+  }
   if (state.balance === undefined) { $('balInfo').textContent = ''; return; }
   const balancing = cells.map((_, i) => i).filter(i => i < 32 && ((state.balance >>> i) & 1)).map(i => i + 1);
   $('balInfo').textContent = balancing.length
@@ -1321,7 +1348,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 25 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 26 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
