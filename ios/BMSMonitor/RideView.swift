@@ -16,6 +16,7 @@ struct RideView: View {
                         .frame(height: 300)
                     power
                     tripGrid
+                    if ride.track.count >= 2 { route }
                     blocksStrip
                     Spacer(minLength: 0)
                     button
@@ -80,6 +81,24 @@ struct RideView: View {
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(0.06)))
     }
 
+    // 这一趟的路线（不带地图，只画形状）
+    private var route: some View {
+        HStack(spacing: 12) {
+            TrackShape(track: ride.track)
+                .stroke(LinearGradient(colors: [Theme.accent, Theme.good], startPoint: .leading, endPoint: .trailing),
+                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .frame(width: 70, height: 46)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("路线").font(.caption).foregroundStyle(Theme.sub)
+                Text("结束后在记录里看地图").font(.caption2).foregroundStyle(Theme.faint)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(0.06)))
+    }
+
     // 五块电池的小电量条
     private var blocksStrip: some View {
         let bs = m.liveBlocks
@@ -111,7 +130,7 @@ struct RideView: View {
                     .background(Capsule().fill(ride.on ? Theme.bad : Theme.accent))
                     .foregroundStyle(.white)
             }
-            Text(ride.note.isEmpty ? "骑行时屏幕常亮；切到导航或锁屏，锁屏和灵动岛会继续显示。位置只留在手机上。" : ride.note)
+            Text(ride.note.isEmpty ? "骑行时屏幕常亮；切到导航或锁屏，锁屏和灵动岛会继续显示。位置和轨迹只存在手机上，不会上传。" : ride.note)
                 .font(.caption2).foregroundStyle(ride.note.isEmpty ? Theme.faint : Theme.warn).multilineTextAlignment(.center)
         }
     }

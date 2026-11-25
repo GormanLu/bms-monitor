@@ -8,6 +8,14 @@ struct TripSample: Codable {
     var soc: Double    // 最低一块的电量 %
 }
 
+/// 轨迹点：经纬度是手机定位给的原始坐标（WGS-84），只存在手机里
+struct TrackPoint: Codable {
+    var lat: Double
+    var lon: Double
+    var t: Double      // 从出发开始的秒数
+    var v: Double      // 车速 km/h
+}
+
 struct Trip: Codable, Identifiable {
     var id = UUID()
     var start: Date
@@ -20,6 +28,7 @@ struct Trip: Codable, Identifiable {
     var socStart: Double
     var socEnd: Double
     var samples: [TripSample]
+    var track: [TrackPoint]? = nil
 
     var km: Double { distM / 1000 }
     var duration: TimeInterval { end.timeIntervalSince(start) }

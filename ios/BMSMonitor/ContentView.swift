@@ -53,6 +53,7 @@ struct SettingsView: View {
     @AppStorage("notify.low") private var notifyLow = true
     @AppStorage("notify.charge") private var notifyCharge = true
     @AppStorage("notify.temp") private var notifyTemp = true
+    @AppStorage("map.gcj") private var mapGcj = true
 
     var body: some View {
         NavigationStack {
@@ -65,6 +66,9 @@ struct SettingsView: View {
                     Toggle("充满时提醒", isOn: $notifyCharge)
                     Toggle("电量低于 20% 和 10% 时提醒", isOn: $notifyLow)
                     Toggle("电池温度到 50 °C 时提醒", isOn: $notifyTemp)
+                }
+                Section(header: Text("轨迹"), footer: Text("国内地图的坐标和手机定位的坐标不一样，画轨迹前要换算。要是轨迹和道路明显错开几百米，关掉这个试试。轨迹只存在这台手机里，不会上传。")) {
+                    Toggle("轨迹偏移校正", isOn: $mapGcj)
                 }
                 Section(header: Text("电费")) {
                     Stepper(String(format: "电价 %.2f 元/度", trips.price), value: $trips.price, in: 0.1...3, step: 0.05)

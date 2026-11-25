@@ -25,9 +25,9 @@
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>连接三轮车电池的保护板，读取电压、电流和温度。只读取，不会改动电池。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>骑行时计算车速和里程。位置只留在手机上，不会上传。</string>
+	<string>骑行时计算车速、里程，记录骑行轨迹。位置和轨迹只存在手机上，不会上传。</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>切到导航等其他应用时继续计算车速和里程。位置只留在手机上，不会上传。</string>
+	<string>切到导航等其他应用时继续计算车速、里程和轨迹。位置和轨迹只存在手机上，不会上传。</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>

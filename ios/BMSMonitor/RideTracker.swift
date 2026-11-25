@@ -3,7 +3,7 @@ import CoreLocation
 import UIKit
 
 // 骑行模式：用手机定位算车速和里程，切到导航、锁屏时照样算（屏幕顶上会有定位的蓝色提示）。
-// 位置只留在手机上，日志里只记信号好不好、车速和里程这些统计数字。
+// 位置和轨迹只存在手机上（骑行记录里），日志里只记信号好不好、车速和里程这些统计数字，不会上传位置。
 // 算法和网页一样：车速用系统直接给的；里程离上一个记录点超过 15 米（或定位误差）才累加，避免把飘动算成路程。
 final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var on = false
@@ -14,6 +14,8 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var note = ""
     @Published private(set) var startedAt: Date?
     @Published private(set) var movingS: Double = 0
+    /// 这一趟的轨迹：离上一个点超过 5 米记一个点（只存在手机里）
+    private(set) var track: [TrackPoint] = []
 
     private let lm = CLLocationManager()
     private var anchor: CLLocation?
@@ -42,7 +44,7 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
         if lm.authorizationStatus == .notDetermined { lm.requestWhenInUseAuthorization() }
         lm.allowsBackgroundLocationUpdates = true
         lm.showsBackgroundLocationIndicator = true
-        anchor = nil; prev = nil; prevSpeed = nil
+        anchor = nil; prev = nil; prevSpeed = nil; track = []
         distM = 0; vMaxKmh = 0; movingS = 0; firstT = nil; lastT = nil; startedAt = Date()
         speedKmh = nil; speedAt = nil
         st = Stat()
@@ -105,6 +107,10 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
             prevSpeed = s
         }
         prev = l
+        if let s = startedAt, track.last.map({ CLLocation(latitude: $0.lat, longitude: $0.lon).distance(from: l) >= 5 }) ?? true {
+            track.append(TrackPoint(lat: l.coordinate.latitude, lon: l.coordinate.longitude,
+                                    t: l.timestamp.timeIntervalSince(s), v: (nat ?? 0) * 3.6))
+        }
         if firstT == nil { firstT = l.timestamp }
         lastT = l.timestamp
         if now.timeIntervalSince(st.t0) >= 60 { flush() }

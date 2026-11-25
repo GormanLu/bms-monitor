@@ -62,10 +62,14 @@ struct TripRow: View {
     var body: some View {
         HStack(spacing: 12) {
             ZStack {
-                Circle().fill(Theme.accent.opacity(0.18))
-                Image(systemName: "figure.outdoor.cycle").foregroundStyle(Theme.accent)
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Theme.accent.opacity(0.15))
+                if let tr = trip.track, tr.count >= 2 {
+                    TrackShape(track: tr).stroke(Theme.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round)).padding(7)
+                } else {
+                    Image(systemName: "figure.outdoor.cycle").foregroundStyle(Theme.accent)
+                }
             }
-            .frame(width: 40, height: 40)
+            .frame(width: 46, height: 46)
             VStack(alignment: .leading, spacing: 3) {
                 Text(trip.start.formatted(.dateTime.month().day().hour().minute())).font(.subheadline.weight(.semibold))
                 Text(String(format: "%.2f km · %@ · 最高 %.0f km/h", trip.km, trip.duration.hms, trip.maxKmh))
@@ -87,12 +91,31 @@ struct TripDetailView: View {
     let trip: Trip
     @EnvironmentObject var trips: TripStore
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("map.gcj") private var gcj = true
+    @State private var gpx: URL?
 
     var body: some View {
         ZStack {
             AppBackground()
             ScrollView {
                 VStack(spacing: 14) {
+                    if let tr = trip.track, tr.count >= 2 {
+                        VStack(alignment: .leading, spacing: 8) {
+                            TrackMap(track: tr, gcj: gcj)
+                                .frame(height: 280)
+                                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                            HStack(spacing: 10) {
+                                ForEach([("慢", 5.0), ("15", 15.0), ("28", 28.0), ("40+", 40.0)], id: \.0) { item in
+                                    HStack(spacing: 4) {
+                                        Circle().fill(Color(speedColor(item.1))).frame(width: 8, height: 8)
+                                        Text(item.0).font(.caption2).foregroundStyle(Theme.sub)
+                                    }
+                                }
+                                Spacer()
+                                Text("颜色是车速（km/h）").font(.caption2).foregroundStyle(Theme.faint)
+                            }
+                        }
+                    }
                     GlassCard(title: trip.start.formatted(date: .complete, time: .shortened), icon: "calendar") {
                         Grid(horizontalSpacing: 10, verticalSpacing: 14) {
                             GridRow {
@@ -127,6 +150,14 @@ struct TripDetailView: View {
         }
         .navigationTitle("这一趟")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let gpx {
+                ToolbarItem(placement: .topBarTrailing) {
+                    ShareLink(item: gpx) { Label("导出轨迹", systemImage: "square.and.arrow.up") }
+                }
+            }
+        }
+        .task { gpx = trip.gpxFile() }
     }
 
     private func chart(title: String, unit: String, color: Color, _ value: @escaping (TripSample) -> Double) -> some View {

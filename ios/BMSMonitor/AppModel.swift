@@ -130,14 +130,15 @@ final class AppModel: ObservableObject {
         tick?.invalidate(); tick = nil
         rideTick()
         let start = ride.startedAt ?? Date()
-        let dist = ride.distM, moving = ride.movingS, vmax = ride.vMaxKmh
+        let dist = ride.distM, moving = ride.movingS, vmax = ride.vMaxKmh, track = ride.track
         live.end(liveState())
         ride.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         if dist >= 100 {
             trips.add(Trip(start: start, end: Date(), distM: dist, movingS: moving, maxKmh: vmax,
                            energyWh: tripWh, maxPowerW: tripMaxW,
-                           socStart: tripSocStart, socEnd: lowest?.soc ?? tripSocStart, samples: tripSamples))
+                           socStart: tripSocStart, socEnd: lowest?.soc ?? tripSocStart, samples: tripSamples,
+                           track: track.count >= 2 ? track : nil))
             LogStore.shared.log(String(format: "这一趟用电 %.0f Wh，最大功率 %.0f W", tripWh, tripMaxW))
         }
         if autoUpload && Keychain.load() != nil { upload() }   // 骑完自动传一次
