@@ -7,6 +7,9 @@ struct TripsView: View {
     @EnvironmentObject var trips: TripStore
     @EnvironmentObject var badges: BadgeStore
     @State private var seg = 0
+    @State private var showReport = false
+    @State private var showBadges = false
+    @State private var showHeat = false
 
     var body: some View {
         NavigationStack {
@@ -29,6 +32,9 @@ struct TripsView: View {
                 }
             }
             .navigationTitle("记录")
+            .navigationDestination(isPresented: $showReport) { ReportView() }
+            .navigationDestination(isPresented: $showBadges) { BadgesView() }
+            .navigationDestination(isPresented: $showHeat) { HeatmapView() }
         }
     }
 
@@ -36,11 +42,12 @@ struct TripsView: View {
         List {
             Section {
                 HStack(spacing: 10) {
-                    NavigationLink { ReportView() } label: { shortcut("月度报告", "chart.bar.doc.horizontal.fill", Theme.accent) }
-                    NavigationLink { BadgesView() } label: { shortcut("Lv.\(badges.level.index) 徽章", "medal.fill", Theme.warn) }
-                    NavigationLink { HeatmapView() } label: { shortcut("路线热力图", "flame.fill", Theme.bad) }
+                    // 一行里放好几个跳转时，列表会把整行当成一个按钮、点哪个都可能触发几个，所以用独立按钮各自控制
+                    Button { showReport = true } label: { shortcut("月度报告", "chart.bar.doc.horizontal.fill", Theme.accent) }
+                    Button { showBadges = true } label: { shortcut("Lv.\(badges.level.index) 徽章", "medal.fill", Theme.warn) }
+                    Button { showHeat = true } label: { shortcut("路线热力图", "flame.fill", Theme.bad) }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
             }
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
