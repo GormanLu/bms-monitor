@@ -8,8 +8,8 @@ const TEAM = 'ZU27Q3S7UC', BUILD = 9, BUNDLE = 'com.gormanlu.bmsmonitor';
 const appSrcs = ['BMSMonitorApp.swift', 'AppModel.swift', 'BLEManager.swift', 'FrameParser.swift', 'LogStore.swift', 'Uploader.swift',
   'RideTracker.swift', 'TripStore.swift', 'Notifier.swift', 'LiveActivityManager.swift', 'Components.swift', 'HomeView.swift',
   'RideView.swift', 'TripsView.swift', 'TrackViews.swift', 'NavManager.swift', 'NavViews.swift', 'Speaker.swift', 'Extras.swift', 'Badges.swift', 'BatteryStats.swift', 'ExtraViews.swift', 'ContentView.swift', 'Features2.swift', 'Features3.swift', 'Views3.swift'];
-const sharedSrcs = ['RideAttributes.swift'];
-const widgetSrcs = ['BMSWidget.swift'];
+const sharedSrcs = ['RideAttributes.swift', 'WidgetShare.swift'];
+const widgetSrcs = ['BMSWidget.swift', 'HomeWidget.swift'];
 
 let n = 0; const id = () => ('AB' + String(++n).padStart(22, '0'));
 const ref = {}, bfApp = {}, bfWid = {};
@@ -38,6 +38,7 @@ const appCfg = `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = ${TEAM};
 				ENABLE_PREVIEWS = NO;
 				GENERATE_INFOPLIST_FILE = NO;
+				CODE_SIGN_ENTITLEMENTS = BMSMonitor/BMSMonitor.entitlements;
 				INFOPLIST_FILE = BMSMonitor/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -53,6 +54,7 @@ const widCfg = `APPLICATION_EXTENSION_API_ONLY = YES;
 				CURRENT_PROJECT_VERSION = ${BUILD};
 				DEVELOPMENT_TEAM = ${TEAM};
 				GENERATE_INFOPLIST_FILE = NO;
+				CODE_SIGN_ENTITLEMENTS = BMSWidget/BMSWidget.entitlements;
 				INFOPLIST_FILE = BMSWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

@@ -6,6 +6,7 @@ import ActivityKit
 struct BMSWidgetBundle: WidgetBundle {
     var body: some Widget {
         RideLiveActivity()
+        HomeWidget()
     }
 }
 

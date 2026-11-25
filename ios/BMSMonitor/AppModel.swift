@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import WidgetKit
 
 final class AppModel: ObservableObject {
     static let shared = AppModel()
@@ -32,6 +33,7 @@ final class AppModel: ObservableObject {
     private var lastEtaAt = Date.distantPast
     private var etaScheduled: Date?
     private var lastIdleAt = Date.distantPast
+    private var lastWidget: (Date, Int, Bool)?
     @Published var checkInMsg = ""
     @Published var checkingIn = false
     @Published var voiceKm: Bool = UserDefaults.standard.object(forKey: "voice.km") as? Bool ?? true {
@@ -124,11 +126,28 @@ final class AppModel: ObservableObject {
             autoStartCheck()
             chargeEta()
             idleReminder()
+            pushWidget()
             if engine.running { engine.update(speed: ride.freshSpeed ?? 0, power: power ?? 0) }
         }
     }
 
     func say(_ s: String) { Speaker.shared.say(s) }
+
+    // MARK: 主屏幕小组件：电量变了 1% 以上、开始或停止充电、或者过了 10 分钟，才刷新一次（系统限制刷新次数）
+    func pushWidget(force: Bool = false) {
+        guard let lo = lowest, liveBlocks.count >= 2 else { return }
+        let soc = Int(lo.soc), ch = isCharging
+        if !force, let l = lastWidget, l.1 == soc, l.2 == ch, Date().timeIntervalSince(l.0) < 600 { return }
+        lastWidget = (Date(), soc, ch)
+        let ws = weekStart()
+        let bs = liveBlocks
+        WidgetShare.save(WidgetSnap(t: Date(), soc: lo.soc, range: rangeKm.map { Int($0) } ?? -1, charging: ch, eta: chargeEtaText,
+                                    weekKm: trips.trips.filter { $0.start >= ws }.reduce(0) { $0 + $1.km }, goalKm: Pref.weeklyKm,
+                                    todayKm: trips.trips.filter { Calendar.current.isDateInToday($0.start) }.reduce(0) { $0 + $1.km },
+                                    gapMv: packGapMv ?? 0, tempMax: tempRange?.1 ?? 0,
+                                    names: bs.map(\.name), socs: bs.map { Int($0.soc) }, parkedAt: parking.spot?.t))
+        WidgetCenter.shared.reloadTimelines(ofKind: "BMSHome")
+    }
 
     // MARK: 自动开始骑行：电池在持续放电（电机在转）6 秒以上
     private func autoStartCheck() {
@@ -272,6 +291,7 @@ final class AppModel: ObservableObject {
             }
             maint.checkDue(odo: maint.odo(trips.trips))
             evaluateBadges()
+            pushWidget(force: true)
         }
         if autoUpload && Keychain.load() != nil { upload() }   // 骑完自动传一次
     }
