@@ -11,6 +11,7 @@ final class AppModel: ObservableObject {
     let charges = ChargeStore()
     let health = HealthStore()
     let badges = BadgeStore()
+    let stats = BatteryStats()
     @Published var voiceKm: Bool = UserDefaults.standard.object(forKey: "voice.km") as? Bool ?? true {
         didSet { UserDefaults.standard.set(voiceKm, forKey: "voice.km") }
     }
@@ -43,8 +44,9 @@ final class AppModel: ObservableObject {
         LogStore.shared.log("App 启动（\(Uploader.appVersion)）")
         Notifier.shared.setup()
         ble.onData = { [weak self] bytes in self?.onBytes(bytes) }
-        charges.onSaved = { [weak self] c in if c.complete { self?.badges.unlock("charge") } }
-        nav.onArrived = { [weak self] in self?.badges.unlock("nav") }
+        charges.onSaved = { [weak self] _ in self?.evaluateBadges() }
+        nav.onArrived = { [weak self] in self?.badges.navArrived(); self?.evaluateBadges() }
+        badges.evaluate(badgeCtx(), silent: true)       // 按已有记录补发，不弹提示
         Notifier.shared.onAlert = { [weak self] text in
             if self?.ride.on == true { Speaker.shared.say(text) }     // 骑车时把提醒也念出来
         }
@@ -81,7 +83,10 @@ final class AppModel: ObservableObject {
             let bs = liveBlocks
             Notifier.shared.check(blocks: bs)
             charges.feed(blocks: bs, power: power)
+            let n = health.records.count
             health.feed(blocks: bs, summarySoc: summary?.soc)
+            if health.records.count != n { evaluateBadges() }
+            stats.feed(blocks: bs)
         }
     }
 
@@ -163,7 +168,7 @@ final class AppModel: ObservableObject {
                            socStart: tripSocStart, socEnd: lowest?.soc ?? tripSocStart, samples: tripSamples,
                            track: track.count >= 2 ? track : nil))
             LogStore.shared.log(String(format: "这一趟用电 %.0f Wh，最大功率 %.0f W", tripWh, tripMaxW))
-            badges.check(trips: trips.trips)
+            evaluateBadges()
         }
         if autoUpload && Keychain.load() != nil { upload() }   // 骑完自动传一次
     }
@@ -228,6 +233,12 @@ final class AppModel: ObservableObject {
     }
 
     var tripWhPerKm: Double? { ride.distM >= 500 && tripWh > 1 ? tripWh / (ride.distM / 1000) : nil }
+
+    // MARK: 徽章
+    func badgeCtx() -> BadgeCtx {
+        BadgeCtx(trips: trips.trips, charges: charges.sessions, health: health.records, navArrivals: badges.navCount, cycles: stats.cycles)
+    }
+    func evaluateBadges() { badges.evaluate(badgeCtx()) }
 
     // MARK: 上传
     func upload() {

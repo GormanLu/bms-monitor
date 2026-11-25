@@ -15,6 +15,8 @@ struct BlockData {
     let term: Double           // 这一块两端的电压，伏
     let status: UInt16         // 状态字（字节 14-15），第 2 位 = 充电开关开着
     let balance: UInt8         // 均衡位（字节 38 低 4 位）
+    var raw25: UInt8 = 0       // 字节 25：一直是 200，推测是健康度 ×2（没法验证）
+    var raw22: UInt8 = 0       // 字节 22：A～D 一直是 3、P 是 0；小程序显示的循环次数 0 和 P 的这个字节一致，推测是保护板的循环计数（但用了一轮也没涨）
     let at: Date
 
     var name: String {
@@ -88,6 +90,8 @@ final class FrameParser {
                 term: Double(u(9)) / 1000,
                 status: UInt16(u(14)),
                 balance: f[38] & 0x0F,
+                raw25: f[25],
+                raw22: f[22],
                 at: at))
         }
         if f[4] == 0x02 && f.count >= 30 {

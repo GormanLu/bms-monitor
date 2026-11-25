@@ -37,7 +37,7 @@ struct TripsView: View {
             Section {
                 HStack(spacing: 10) {
                     NavigationLink { ReportView() } label: { shortcut("月度报告", "chart.bar.doc.horizontal.fill", Theme.accent) }
-                    NavigationLink { BadgesView() } label: { shortcut("徽章 \(badges.unlocked.count)/\(BadgeStore.all.count)", "medal.fill", Theme.warn) }
+                    NavigationLink { BadgesView() } label: { shortcut("Lv.\(badges.level.index) 徽章", "medal.fill", Theme.warn) }
                     NavigationLink { HeatmapView() } label: { shortcut("路线热力图", "flame.fill", Theme.bad) }
                 }
                 .buttonStyle(.plain)
@@ -198,33 +198,100 @@ struct HealthView: View {
 // MARK: - 徽章
 struct BadgesView: View {
     @EnvironmentObject var badges: BadgeStore
+    @EnvironmentObject var m: AppModel
     var body: some View {
-        ZStack {
+        let ctx = badges.lastCtx ?? m.badgeCtx()
+        let lv = badges.level
+        let cats = ["骑行", "技术", "习惯", "电池"]
+        return ZStack {
             AppBackground()
             ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 12)], spacing: 12) {
-                    ForEach(BadgeStore.all) { b in
-                        let got = badges.unlocked[b.id]
-                        VStack(spacing: 8) {
+                VStack(spacing: 14) {
+                    GlassCard {
+                        HStack(spacing: 14) {
                             ZStack {
-                                Circle().fill(got != nil ? LinearGradient(colors: [Theme.warn, Theme.bad], startPoint: .topLeading, endPoint: .bottomTrailing)
-                                                         : LinearGradient(colors: [Color.white.opacity(0.08), Color.white.opacity(0.04)], startPoint: .top, endPoint: .bottom))
-                                Image(systemName: b.icon).font(.title2).foregroundStyle(got != nil ? .white : Theme.faint)
+                                Circle().fill(LinearGradient(colors: [Theme.accent, Theme.good], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                VStack(spacing: 0) {
+                                    Text("Lv").font(.caption2.weight(.bold))
+                                    Text("\(lv.index)").font(.system(size: 26, weight: .heavy, design: .rounded))
+                                }
+                                .foregroundStyle(.white)
                             }
-                            .frame(width: 60, height: 60)
-                            Text(b.title).font(.subheadline.weight(.bold)).foregroundStyle(got != nil ? .white : Theme.sub)
-                            Text(b.detail).font(.system(size: 10)).foregroundStyle(Theme.sub).multilineTextAlignment(.center).lineLimit(2)
-                            Text(got.map { $0.formatted(.dateTime.month().day()) } ?? "未解锁").font(.system(size: 9)).foregroundStyle(Theme.faint)
+                            .frame(width: 70, height: 70)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(lv.title).font(.title3.weight(.bold))
+                                Text("积分 \(badges.points) · 已点亮 \(badges.unlockedCount)/\(BadgeStore.all.count) 个徽章").font(.caption).foregroundStyle(Theme.sub)
+                                if let next = lv.next {
+                                    ProgressView(value: Double(badges.points - lv.floor), total: Double(next - lv.floor)).tint(Theme.good)
+                                    Text("再拿 \(next - badges.points) 分升级").font(.caption2).foregroundStyle(Theme.faint)
+                                }
+                            }
                         }
-                        .padding(10)
-                        .frame(maxWidth: .infinity)
-                        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Theme.card))
+                        Text("每个徽章有铜、银、金、钻石四级，分别得 10、25、50、100 分。").font(.caption2).foregroundStyle(Theme.faint)
+                    }
+                    ForEach(cats, id: \.self) { cat in
+                        GlassCard(title: cat) {
+                            ForEach(BadgeStore.all.filter { $0.category == cat }) { d in
+                                BadgeRow(def: d, tier: badges.tiers[d.id] ?? 0, value: d.value(ctx), date: badges.dates[d.id])
+                            }
+                        }
                     }
                 }
                 .padding(16)
             }
         }
         .navigationTitle("徽章")
+    }
+}
+
+struct BadgeRow: View {
+    let def: BadgeDef
+    let tier: Int
+    let value: Double?
+    let date: Date?
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(Tier.color(tier))
+                Image(systemName: def.icon).font(.title3).foregroundStyle(tier > 0 ? .black.opacity(0.75) : Theme.faint)
+            }
+            .frame(width: 46, height: 46)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(def.title).font(.subheadline.weight(.bold))
+                    if tier > 0 {
+                        Text(Tier.names[tier - 1]).font(.caption2.weight(.bold))
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Capsule().fill(Tier.color(tier))).foregroundStyle(.black.opacity(0.8))
+                    }
+                    Spacer()
+                    HStack(spacing: 3) {
+                        ForEach(0..<4, id: \.self) { i in Circle().fill(i < tier ? Tier.color(i + 1) : Color.white.opacity(0.12)).frame(width: 7, height: 7) }
+                    }
+                }
+                if tier < def.tiers.count {
+                    Text("下一级：" + def.text(tier)).font(.caption).foregroundStyle(Theme.sub)
+                    ProgressView(value: progress).tint(Tier.color(tier + 1))
+                    Text("现在：" + valueText).font(.caption2).foregroundStyle(Theme.faint)
+                } else {
+                    Text("已满级：" + def.text(3)).font(.caption).foregroundStyle(Theme.sub)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var valueText: String {
+        guard let v = value, v > 0 else { return "还没有" }
+        return (v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v)) + " " + def.unit
+    }
+
+    private var progress: Double {
+        guard let v = value, v > 0, tier < def.tiers.count else { return 0 }
+        let target = def.tiers[tier]
+        let start = tier > 0 ? def.tiers[tier - 1] : (def.lowerIsBetter ? target * 1.5 : 0)
+        let p = def.lowerIsBetter ? (start - v) / (start - target) : (v - start) / (target - start)
+        return min(max(p, 0), 1)
     }
 }
 

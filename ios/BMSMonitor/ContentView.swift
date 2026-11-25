@@ -23,7 +23,7 @@ struct BadgeToast: View {
             HStack(spacing: 12) {
                 Image(systemName: b.icon).font(.title2).foregroundStyle(.white)
                     .frame(width: 44, height: 44)
-                    .background(Circle().fill(LinearGradient(colors: [Theme.warn, Theme.bad], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                    .background(Circle().fill(Tier.color(b.tier)))
                 VStack(alignment: .leading, spacing: 2) {
                     Text("解锁徽章：" + b.title).font(.headline)
                     Text(b.detail).font(.caption).foregroundStyle(Theme.sub)

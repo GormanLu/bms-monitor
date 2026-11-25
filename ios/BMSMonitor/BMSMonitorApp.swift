@@ -17,6 +17,7 @@ struct BMSMonitorApp: App {
                 .environmentObject(model.charges)
                 .environmentObject(model.health)
                 .environmentObject(model.badges)
+                .environmentObject(model.stats)
         }
     }
 }

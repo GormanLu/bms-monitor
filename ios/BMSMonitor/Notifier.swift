@@ -28,7 +28,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
 
     var onAlert: ((String) -> Void)?
 
-    func badge(_ b: Badge) {
+    func badge(_ b: BadgeUnlock) {
         let c = UNMutableNotificationContent()
         c.title = "解锁徽章：" + b.title
         c.body = b.detail
