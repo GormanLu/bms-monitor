@@ -13,8 +13,6 @@ enum Pref {
     static var speedLimit: Double { double("speed.limit", 30) }
     static var autoStart: Bool { bool("ride.autoStart", true) }
     static var autoStop: Bool { bool("ride.autoStop", true) }
-    static var crashOn: Bool { bool("crash.on", false) }
-    static var sosPhone: String { d.string(forKey: "crash.phone") ?? "" }
     static var weeklyKm: Double { double("goal.week", 30) }
     static var fuelPrice: Double { double("cost.fuel", 7.5) }
     static var fuelPer100: Double { double("cost.l100", 6) }
@@ -203,23 +201,6 @@ final class FavStore: ObservableObject {
         return places.contains { abs($0.lat - c.latitude) < 1e-5 && abs($0.lon - c.longitude) < 1e-5 }
     }
     func delete(at o: IndexSet) { places.remove(atOffsets: o); file.save(places) }
-}
-
-// MARK: - 摔车检测（只提醒，不会自动打电话）
-final class CrashDetector {
-    private let mm = CMMotionManager()
-    var onImpact: (() -> Void)?
-    private var last = Date.distantPast
-    func start() {
-        guard mm.isDeviceMotionAvailable, !mm.isDeviceMotionActive else { return }
-        mm.deviceMotionUpdateInterval = 1.0 / 50
-        mm.startDeviceMotionUpdates(to: .main) { [weak self] d, _ in
-            guard let self, let a = d?.userAcceleration else { return }
-            let g = (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot()
-            if g > 3.5, Date().timeIntervalSince(self.last) > 20 { self.last = Date(); self.onImpact?() }
-        }
-    }
-    func stop() { mm.stopDeviceMotionUpdates() }
 }
 
 // MARK: - 声浪模拟：按车速和功率合成一个类似发动机的声音

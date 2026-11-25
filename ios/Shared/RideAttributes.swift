@@ -25,6 +25,7 @@ struct RideAttributes: ActivityAttributes {
         var navText: String = ""        // 导航：下一个动作
         var navDist: Int = -1           // 导航：离下一个动作多少米，-1 表示没在导航
         var navLeftM: Int = 0           // 导航：剩下多少米
+        var gapMv: Int = -1             // 整组最高和最低一节的压差 mV，-1 表示没有
     }
     var startedAt: Date
 }
@@ -45,7 +46,7 @@ func navIcon(for t: String) -> String {
 
 /// 收起时左右两边可以选的内容
 enum IslandItem: String, CaseIterable, Identifiable {
-    case speed, soc, power, range, dist, current, temp, wh
+    case speed, soc, power, range, dist, current, temp, wh, gap
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -57,6 +58,7 @@ enum IslandItem: String, CaseIterable, Identifiable {
         case .current: return "电流"
         case .temp: return "温度"
         case .wh: return "每公里耗电"
+        case .gap: return "压差"
         }
     }
 }

@@ -27,7 +27,7 @@ enum Keychain {
 // 上传到自己的 GitHub 私有仓库，格式和网页版一样；一份不超过约 800 KB，多了就分几份。
 enum Uploader {
     static let repo = "GormanLu/bms-logs"
-    static let appVersion = "App 第 9 版"
+    static let appVersion = "App 第 10 版"
     private static let limit = 800_000
 
     static func upload(tail: String = "") async -> String {

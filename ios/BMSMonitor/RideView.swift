@@ -70,6 +70,9 @@ struct RideView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("电量 · 按最低的一块").font(.caption2).foregroundStyle(Theme.sub)
                 Text(m.rangeKm.map { String(format: "还能跑约 %.0f km", $0) } ?? "续航估算中").font(.subheadline.weight(.semibold))
+                if let t = m.tempRange {
+                    Text("电池温度 \(t.0)~\(t.1) °C").font(.caption2).foregroundStyle(t.1 >= 50 ? Theme.bad : t.1 >= 45 ? Theme.warn : Theme.sub)
+                }
             }
             Spacer()
             Button { if nav.active { nav.stop() } else { showSearch = true } } label: {
@@ -130,11 +133,17 @@ struct RideView: View {
             GridRow {
                 StatTile(label: "用电", value: String(format: "%.0f", m.tripWh), unit: "Wh")
                 StatTile(label: "每公里", value: m.tripWhPerKm.map { String(format: "%.0f", $0) } ?? "--", unit: "Wh")
-                StatTile(label: "温度", value: m.tempRange.map { "\($0.1)" } ?? "--", unit: "°C")
+                StatTile(label: "压差", value: m.packGapMv.map { "\($0)" } ?? "--", unit: "mV", color: gapColor(m.packGapMv))
             }
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(0.06)))
+    }
+
+    // 骑行时电流一直在变，压差会比停着时大，所以这里放宽：300 mV 以上才标红
+    private func gapColor(_ g: Int?) -> Color {
+        guard let g else { return .white }
+        return g >= 300 ? Theme.bad : g >= 150 ? Theme.warn : .white
     }
 
     // 这一趟的路线（不带地图，只画形状）
@@ -171,6 +180,7 @@ struct RideView: View {
                     .frame(height: 6)
                     Text("\(b.name) \(Int(b.soc))%").font(.system(size: 10, weight: b.id == lowId ? .bold : .regular))
                         .foregroundStyle(b.id == lowId ? Theme.warn : Theme.sub).monospacedDigit()
+                    Text("\(b.gapMv) mV").font(.system(size: 9)).foregroundStyle(Theme.faint).monospacedDigit()
                 }
             }
         }

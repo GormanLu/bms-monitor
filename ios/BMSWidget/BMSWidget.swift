@@ -24,6 +24,8 @@ private extension RideAttributes.ContentState {
     var tempText: String { tempMax > -99 ? "\(tempMax)°" : "--" }
     var avgText: String { avgKmh >= 0 ? "\(avgKmh)" : "--" }
     var whText: String { whPerKm >= 0 ? "\(whPerKm)" : "--" }
+    var gapText: String { gapMv >= 0 ? "\(gapMv)" : "--" }
+    var gapColor: Color { gapMv >= 300 ? red : .white }
 
     /// 收起时某一边显示的文字和颜色
     func compact(_ key: String) -> (String, Color) {
@@ -36,6 +38,7 @@ private extension RideAttributes.ContentState {
         case .current: return (String(format: "%.0fA", abs(current)), .white)
         case .temp: return (tempText, tempMax >= 50 ? red : .white)
         case .wh: return (whText, .white)
+        case .gap: return (gapText + "mV", gapColor)
         }
     }
 }
@@ -121,6 +124,7 @@ struct RideLiveActivity: Widget {
                             }
                             .frame(maxWidth: .infinity)
                             Mini(value: String(format: "%.0f", abs(s.current)), label: "电流 A")
+                            Mini(value: s.gapText, label: "压差 mV", color: s.gapColor)
                             Mini(value: s.tempText, label: "温度", color: s.tempMax >= 50 ? red : .white)
                         }
                         if !s.blockSocs.isEmpty { BlockBars(s: s) }
@@ -202,8 +206,8 @@ struct LockScreenView: View {
                 }
                 .frame(maxWidth: .infinity)
                 Mini(value: s.avgText, label: "平均 km/h")
-                Mini(value: "\(s.tripWh)", label: "用电 Wh")
                 Mini(value: s.whText, label: "Wh/km")
+                Mini(value: s.gapText, label: "压差 mV", color: s.gapColor)
                 Mini(value: s.tempText, label: "温度", color: s.tempMax >= 50 ? red : .white)
             }
             if !s.blockSocs.isEmpty { BlockBars(s: s) }

@@ -46,6 +46,11 @@ struct HandlebarView: View {
                         big((ride.startedAt.map { Date().timeIntervalSince($0) } ?? 0).hms, "", "用时", .white)
                         big(m.tempRange.map { "\($0.1)" } ?? "--", "°", "温度", (m.tempRange?.1 ?? 0) >= 50 ? Theme.bad : .white)
                     }
+                    HStack {
+                        big(m.packGapMv.map { "\($0)" } ?? "--", "mV", "压差", (m.packGapMv ?? 0) >= 300 ? Theme.bad : .white)
+                        big(String(format: "%.0f", abs(m.current ?? 0)), "A", "电流", .white)
+                        big(m.tripWhPerKm.map { String(format: "%.0f", $0) } ?? "--", "Wh", "每公里", .white)
+                    }
                 }
                 .padding(18)
             }
@@ -73,54 +78,6 @@ struct HandlebarView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(0.07)))
-    }
-}
-
-// MARK: - 摔车提醒：30 秒倒计时，没点"我没事"就提示打电话（要你自己点，app 不会自动打）
-struct CrashAlertView: View {
-    @EnvironmentObject var m: AppModel
-    @State private var left = 30
-    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
-
-    var body: some View {
-        ZStack {
-            Theme.bad.opacity(0.9).ignoresSafeArea()
-            VStack(spacing: 22) {
-                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 70))
-                Text("检测到剧烈撞击").font(.largeTitle.weight(.bold))
-                Text("你还好吗？").font(.title2)
-                if left > 0 {
-                    Text("\(left)").font(.system(size: 80, weight: .heavy, design: .rounded)).monospacedDigit()
-                } else {
-                    Text("没有回应").font(.title3.weight(.semibold))
-                }
-                Button { m.crashAlert = false; LogStore.shared.log("摔车提醒：点了我没事") } label: {
-                    Text("我没事").font(.title2.weight(.bold)).frame(maxWidth: .infinity).padding(.vertical, 18)
-                        .background(Capsule().fill(.white)).foregroundStyle(Theme.bad)
-                }
-                let phone = Pref.sosPhone.filter { $0.isNumber || $0 == "+" }
-                if !phone.isEmpty, let url = URL(string: "tel://" + phone) {
-                    Link(destination: url) {
-                        Label("打电话给紧急联系人", systemImage: "phone.fill").font(.title3.weight(.semibold))
-                            .frame(maxWidth: .infinity).padding(.vertical, 16)
-                            .background(Capsule().stroke(.white, lineWidth: 2))
-                    }
-                }
-                if let url = URL(string: "tel://120") {
-                    Link(destination: url) { Label("打 120", systemImage: "cross.case.fill").font(.headline) }
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(30)
-        }
-        .onReceive(timer) { _ in
-            guard left > 0 else { return }
-            left -= 1
-            if left == 0 {
-                Speaker.shared.say("没有回应。需要帮助的话，点屏幕上的按钮打电话。")
-                Notifier.shared.postNow("检测到摔车", "30 秒没有回应。需要帮助就打开 app 打电话。")
-            }
-        }
     }
 }
 

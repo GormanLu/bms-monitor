@@ -7,6 +7,7 @@ struct HomeView: View {
     @EnvironmentObject var stats: BatteryStats
     @EnvironmentObject var snaps: SnapStore
     @EnvironmentObject var health: HealthStore
+    @AppStorage("tip.hub") private var hubTipSeen = false
 
     var body: some View {
         NavigationStack {
@@ -16,27 +17,18 @@ struct HomeView: View {
                     ScrollView {
                         VStack(spacing: 14) {
                             connection
+                            if !hubTipSeen { hubTip }
                             hero
-                            checkIn
-                            GoalCard()
-                            if m.liveBlocks.count >= 2 { pack }
-                            life
-                            NavigationLink { BatteryReportView() } label: {
-                                HStack {
-                                    Image(systemName: "doc.richtext.fill").foregroundStyle(Theme.accent)
-                                    Text("电池体检报告（PDF）").font(.subheadline.weight(.semibold))
-                                    Spacer()
-                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.faint)
-                                }
-                                .padding(16)
-                                .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
-                            }
-                            .buttonStyle(.plain)
-                            MaintCard()
                             if m.isCharging { charging }
-                            live
                             rideShortcut
+                            if m.liveBlocks.count >= 2 { pack }
+                            live
                             ParkCard()
+                            MaintCard()
+                            GoalCard()
+                            checkIn
+                            life
+                            moreFeatures
                             upload
                         }
                         .padding(.horizontal, 16)
@@ -47,6 +39,36 @@ struct HomeView: View {
             .navigationTitle("电池监控")
             .sheet(isPresented: $ble.scanning) { DevicePicker() }
         }
+    }
+
+    // MARK: 第一次打开这一版时的提示
+    private var hubTip: some View {
+        GlassCard(title: "新：功能页", icon: "sparkles") {
+            Text("导航、车把模式、加速测试、找车、电池体检报告、月报、徽章……现在都集中在底部的\"功能\"那一栏，每个都有一句话说明。")
+                .font(.subheadline)
+            HStack {
+                Button("去看看") { hubTipSeen = true; m.tab = 3 }.buttonStyle(.borderedProminent).tint(Theme.accent)
+                Button("知道了") { withAnimation { hubTipSeen = true } }.buttonStyle(.bordered).tint(.white)
+            }
+        }
+    }
+
+    // MARK: 去功能页
+    private var moreFeatures: some View {
+        Button { m.tab = 3 } label: {
+            HStack {
+                Image(systemName: "square.grid.2x2.fill").foregroundStyle(Theme.accent)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("全部功能").font(.subheadline.weight(.semibold))
+                    Text("体检报告、充电记录、加速测试、月报、徽章……").font(.caption).foregroundStyle(Theme.sub)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.faint)
+            }
+            .padding(16)
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: 连接状态

@@ -20,8 +20,6 @@ final class AppModel: ObservableObject {
     let favs = FavStore()
     let engine = EngineSound()
     private let alt = AltTracker()
-    private let crash = CrashDetector()
-    @Published var crashAlert = false
     @Published var engineOn = false {
         didSet { if engineOn && ride.on { engine.start() } else { engine.stop() } }
     }
@@ -81,12 +79,6 @@ final class AppModel: ObservableObject {
                 self.say(msg)
                 if self.perf.phase == .done { self.evaluateBadges() }
             }
-        }
-        crash.onImpact = { [weak self] in
-            guard let self, self.ride.on, Pref.crashOn else { return }
-            LogStore.shared.log("摔车检测：检测到剧烈撞击")
-            self.crashAlert = true
-            self.say("检测到剧烈撞击，你没事吧？没事的话点我没事。")
         }
         maint.checkDue(odo: maint.odo(trips.trips))
         PhoneLink.shared.onCommand = { [weak self] c in
@@ -251,7 +243,6 @@ final class AppModel: ObservableObject {
     private func startRide() {
         ride.start()
         alt.start()
-        if Pref.crashOn { crash.start() }
         if engineOn { engine.start() }
         stillSince = nil; overCount = 0
         tripWh = 0; tripMaxW = 0; tripSamples = []; tickCount = 0
@@ -271,7 +262,7 @@ final class AppModel: ObservableObject {
         if !auto { manualStopAt = Date() }
         let endAt = auto ? (stillSince ?? Date()) : Date()
         parking.save(ride.lastLocation, soc: lowest?.soc)
-        alt.stop(); crash.stop(); engine.stop()
+        alt.stop(); engine.stop()
         let climb = alt.gain, descent = alt.loss
         let names = liveBlocks.map(\.name)
         let start = ride.startedAt ?? Date()
@@ -370,6 +361,7 @@ final class AppModel: ObservableObject {
         s.current = abs(i) < 0.6 ? 0 : -i
         s.voltage = totalV ?? 0
         s.tempMax = tempRange?.1 ?? -99
+        s.gapMv = packGapMv ?? -1
         s.avgKmh = ride.movingS > 10 ? Int((ride.distM / ride.movingS * 3.6).rounded()) : -1
         s.maxKmh = Int(ride.vMaxKmh.rounded())
         s.tripWh = Int(tripWh.rounded())

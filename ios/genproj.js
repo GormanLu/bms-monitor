@@ -3,12 +3,12 @@
 // 用法：node genproj.js <ios 目录>
 const fs = require('fs'), path = require('path');
 const out = process.argv[2] || __dirname;
-const TEAM = 'ZU27Q3S7UC', BUILD = 10, BUNDLE = 'com.gormanlu.bmsmonitor';
+const TEAM = 'ZU27Q3S7UC', BUILD = 11, BUNDLE = 'com.gormanlu.bmsmonitor';
 
 const appSrcs = ['BMSMonitorApp.swift', 'AppModel.swift', 'BLEManager.swift', 'FrameParser.swift', 'LogStore.swift', 'Uploader.swift',
   'RideTracker.swift', 'TripStore.swift', 'Notifier.swift', 'LiveActivityManager.swift', 'Components.swift', 'HomeView.swift',
   'RideView.swift', 'TripsView.swift', 'TrackViews.swift', 'NavManager.swift', 'NavViews.swift', 'Speaker.swift', 'Extras.swift', 'Badges.swift',
-  'BatteryStats.swift', 'ExtraViews.swift', 'ContentView.swift', 'Features2.swift', 'Features3.swift', 'Views3.swift', 'PhoneLink.swift'];
+  'BatteryStats.swift', 'ExtraViews.swift', 'ContentView.swift', 'Features2.swift', 'Features3.swift', 'Views3.swift', 'PhoneLink.swift', 'FeatureHub.swift'];
 const sharedSrcs = ['RideAttributes.swift', 'WidgetShare.swift'];   // app + 小组件
 const watchShared = ['WatchState.swift'];                            // app + 手表
 const widgetSrcs = ['BMSWidget.swift', 'HomeWidget.swift'];
