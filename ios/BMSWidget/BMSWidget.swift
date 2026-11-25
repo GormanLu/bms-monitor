@@ -109,6 +109,7 @@ struct RideLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 8) {
+                        if s.navDist >= 0 { NavLine(s: s) }
                         HStack(spacing: 0) {
                             Mini(value: String(format: "%.2f", s.distKm), label: "里程 km")
                             Mini(value: s.avgText, label: "平均 km/h")
@@ -126,8 +127,17 @@ struct RideLiveActivity: Widget {
                     .padding(.horizontal, 6)
                 }
             } compactLeading: {
-                let c = s.compact(s.left)
-                Text(c.0).font(.system(.body, design: .rounded).weight(.bold)).monospacedDigit().foregroundStyle(c.1)
+                if s.navDist >= 0 {
+                    HStack(spacing: 2) {
+                        Image(systemName: navIcon(for: s.navText)).font(.system(size: 12, weight: .bold))
+                        Text(s.navDist >= 1000 ? String(format: "%.1fk", Double(s.navDist) / 1000) : "\(s.navDist)m")
+                            .font(.system(.caption, design: .rounded).weight(.bold)).monospacedDigit()
+                    }
+                    .foregroundStyle(blue)
+                } else {
+                    let c = s.compact(s.left)
+                    Text(c.0).font(.system(.body, design: .rounded).weight(.bold)).monospacedDigit().foregroundStyle(c.1)
+                }
             } compactTrailing: {
                 let c = s.compact(s.right)
                 Text(c.0).font(.system(.body, design: .rounded).weight(.semibold)).monospacedDigit().foregroundStyle(c.1)
@@ -138,11 +148,29 @@ struct RideLiveActivity: Widget {
     }
 }
 
+// 导航提示一行：箭头、距离、动作
+private struct NavLine: View {
+    let s: RideAttributes.ContentState
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: navIcon(for: s.navText)).font(.system(size: 18, weight: .bold))
+                .frame(width: 30, height: 30).background(RoundedRectangle(cornerRadius: 8).fill(blue))
+            Text(s.navDist >= 1000 ? String(format: "%.1f 公里", Double(s.navDist) / 1000) : "\(s.navDist) 米")
+                .font(.system(size: 16, weight: .bold, design: .rounded)).monospacedDigit()
+            Text(s.navText).font(.system(size: 13)).lineLimit(1)
+            Spacer(minLength: 0)
+            Text(String(format: "剩 %.1f km", Double(s.navLeftM) / 1000)).font(.system(size: 10)).foregroundStyle(sub)
+        }
+        .foregroundStyle(.white)
+    }
+}
+
 struct LockScreenView: View {
     let s: RideAttributes.ContentState
     let startedAt: Date
     var body: some View {
         VStack(spacing: 10) {
+            if s.navDist >= 0 { NavLine(s: s) }
             HStack(alignment: .center, spacing: 14) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(s.speedText).font(.system(size: 44, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(.white)

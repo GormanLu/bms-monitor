@@ -12,6 +12,33 @@ struct ContentView: View {
         }
         .tint(Theme.accent)
         .preferredColorScheme(.dark)
+        .overlay(alignment: .top) { BadgeToast() }
+    }
+}
+
+struct BadgeToast: View {
+    @EnvironmentObject var badges: BadgeStore
+    var body: some View {
+        if let b = badges.justUnlocked {
+            HStack(spacing: 12) {
+                Image(systemName: b.icon).font(.title2).foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(LinearGradient(colors: [Theme.warn, Theme.bad], startPoint: .topLeading, endPoint: .bottomTrailing)))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("解锁徽章：" + b.title).font(.headline)
+                    Text(b.detail).font(.caption).foregroundStyle(Theme.sub)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color(red: 0.12, green: 0.14, blue: 0.22)))
+            .padding(.horizontal, 16)
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .task {
+                try? await Task.sleep(nanoseconds: 3_500_000_000)
+                withAnimation { badges.justUnlocked = nil }
+            }
+        }
     }
 }
 
@@ -47,6 +74,7 @@ struct SettingsView: View {
     @EnvironmentObject var m: AppModel
     @EnvironmentObject var ble: BLEManager
     @EnvironmentObject var trips: TripStore
+    @EnvironmentObject var nav: NavManager
     @State private var token = ""
     @State private var hasToken = Keychain.load() != nil
     @State private var lines: [String] = []
@@ -68,6 +96,10 @@ struct SettingsView: View {
                     Toggle("充满时提醒", isOn: $notifyCharge)
                     Toggle("电量低于 20% 和 10% 时提醒", isOn: $notifyLow)
                     Toggle("电池温度到 50 °C 时提醒", isOn: $notifyTemp)
+                }
+                Section(header: Text("导航和语音"), footer: Text("在仪表盘右上角点\"导航\"。优先用苹果地图的骑行路线，没有时用步行路线。语音会和音乐、高德的声音一起放，说话时把它们调小。")) {
+                    Toggle("语音播报转弯", isOn: $nav.voiceOn)
+                    Toggle("每骑 1 公里报一次里程和电量", isOn: $m.voiceKm)
                 }
                 Section(header: Text("灵动岛"), footer: Text("灵动岛收起时左右两边各显示一个数，在这里选。长按灵动岛展开、或者看锁屏，能看到全部：车速、电量、续航、功率、电流、里程、用时、平均车速、温度、五块电池的电量。")) {
                     Picker("左边", selection: $islandLeft) {

@@ -13,6 +13,10 @@ struct BMSMonitorApp: App {
                 .environmentObject(model.ble)
                 .environmentObject(model.ride)
                 .environmentObject(model.trips)
+                .environmentObject(model.nav)
+                .environmentObject(model.charges)
+                .environmentObject(model.health)
+                .environmentObject(model.badges)
         }
     }
 }

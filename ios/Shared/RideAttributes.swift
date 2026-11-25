@@ -22,8 +22,25 @@ struct RideAttributes: ActivityAttributes {
         var lowIndex: Int = -1          // 电量最低的是第几块
         var left: String = "speed"      // 收起时左边显示什么
         var right: String = "soc"       // 收起时右边显示什么
+        var navText: String = ""        // 导航：下一个动作
+        var navDist: Int = -1           // 导航：离下一个动作多少米，-1 表示没在导航
+        var navLeftM: Int = 0           // 导航：剩下多少米
     }
     var startedAt: Date
+}
+
+/// 导航动作对应的箭头图标（app 和灵动岛共用）
+func navIcon(for t: String) -> String {
+    if t.contains("掉头") { return "arrow.uturn.left" }
+    if t.contains("左后") { return "arrow.down.left" }
+    if t.contains("右后") { return "arrow.down.right" }
+    if t.contains("向左前") || t.contains("靠左") || t.contains("稍向左") { return "arrow.up.left" }
+    if t.contains("向右前") || t.contains("靠右") || t.contains("稍向右") { return "arrow.up.right" }
+    if t.contains("左转") { return "arrow.turn.up.left" }
+    if t.contains("右转") { return "arrow.turn.up.right" }
+    if t.contains("环岛") { return "arrow.triangle.turn.up.right.circle" }
+    if t.contains("到达") || t.contains("目的地") { return "flag.checkered" }
+    return "arrow.up"
 }
 
 /// 收起时左右两边可以选的内容

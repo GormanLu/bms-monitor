@@ -26,7 +26,18 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         completionHandler([.banner, .sound])
     }
 
+    var onAlert: ((String) -> Void)?
+
+    func badge(_ b: Badge) {
+        let c = UNMutableNotificationContent()
+        c.title = "解锁徽章：" + b.title
+        c.body = b.detail
+        c.sound = .default
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
+    }
+
     private func post(_ title: String, _ body: String) {
+        onAlert?(title + "。" + body)
         let c = UNMutableNotificationContent()
         c.title = title
         c.body = body

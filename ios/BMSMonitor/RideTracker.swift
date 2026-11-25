@@ -16,6 +16,10 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published private(set) var movingS: Double = 0
     /// 这一趟的轨迹：离上一个点超过 5 米记一个点（只存在手机里）
     private(set) var track: [TrackPoint] = []
+    /// 每个合格的定位点都交给它（导航用）
+    var onLocation: ((CLLocation) -> Void)?
+    /// 最近一次的位置（搜索目的地时算距离用）
+    var lastLocation: CLLocation? { prev ?? lm.location }
 
     private let lm = CLLocationManager()
     private var anchor: CLLocation?
@@ -84,6 +88,7 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
         st.n += 1
         st.accMin = min(st.accMin, l.horizontalAccuracy)
         st.accMax = max(st.accMax, l.horizontalAccuracy)
+        onLocation?(l)
         let nat: Double? = l.speed >= 0 ? l.speed : nil
         let gap = prev.map { l.timestamp.timeIntervalSince($0.timestamp) } ?? 0
         if let nat {

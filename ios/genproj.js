@@ -3,11 +3,11 @@
 // 用法：node genproj.js <ios 目录>
 const fs = require('fs'), path = require('path');
 const out = process.argv[2] || __dirname;
-const TEAM = 'ZU27Q3S7UC', BUILD = 5, BUNDLE = 'com.gormanlu.bmsmonitor';
+const TEAM = 'ZU27Q3S7UC', BUILD = 6, BUNDLE = 'com.gormanlu.bmsmonitor';
 
 const appSrcs = ['BMSMonitorApp.swift', 'AppModel.swift', 'BLEManager.swift', 'FrameParser.swift', 'LogStore.swift', 'Uploader.swift',
   'RideTracker.swift', 'TripStore.swift', 'Notifier.swift', 'LiveActivityManager.swift', 'Components.swift', 'HomeView.swift',
-  'RideView.swift', 'TripsView.swift', 'TrackViews.swift', 'ContentView.swift'];
+  'RideView.swift', 'TripsView.swift', 'TrackViews.swift', 'NavManager.swift', 'NavViews.swift', 'Speaker.swift', 'Extras.swift', 'ExtraViews.swift', 'ContentView.swift'];
 const sharedSrcs = ['RideAttributes.swift'];
 const widgetSrcs = ['BMSWidget.swift'];
 

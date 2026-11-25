@@ -1,62 +1,6 @@
 import SwiftUI
 import Charts
 
-struct TripsView: View {
-    @EnvironmentObject var trips: TripStore
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                AppBackground()
-                if trips.trips.isEmpty {
-                    VStack(spacing: 10) {
-                        Image(systemName: "map").font(.system(size: 44)).foregroundStyle(Theme.faint)
-                        Text("还没有骑行记录").font(.headline)
-                        Text("在仪表盘点\"开始骑行\"，骑完点\"结束骑行\"，这里就会多一条。").font(.caption).foregroundStyle(Theme.sub)
-                            .multilineTextAlignment(.center).padding(.horizontal, 40)
-                    }
-                } else {
-                    List {
-                        Section { totals }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                        Section { records }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
-                        Section(header: Text("每一趟").foregroundStyle(Theme.sub)) {
-                            ForEach(trips.trips) { t in
-                                NavigationLink { TripDetailView(trip: t) } label: { TripRow(trip: t) }
-                                    .listRowBackground(Theme.card)
-                            }
-                            .onDelete { trips.delete(at: $0) }
-                        }
-                    }
-                    .scrollContentBackground(.hidden)
-                }
-            }
-            .navigationTitle("骑行记录")
-        }
-    }
-
-    private var totals: some View {
-        GlassCard(title: "累计", icon: "sum") {
-            HStack {
-                StatTile(label: "里程", value: String(format: "%.1f", trips.totalKm), unit: "km")
-                StatTile(label: "用电", value: String(format: "%.2f", trips.totalWh / 1000), unit: "度")
-                StatTile(label: "电费", value: String(format: "%.2f", trips.totalCost), unit: "元")
-            }
-            Text(String(format: "共 %d 趟 · 电价按 %.2f 元/度、充电效率 85%% 算，可以在设置里改", trips.trips.count, trips.price))
-                .font(.caption2).foregroundStyle(Theme.faint)
-        }
-    }
-
-    private var records: some View {
-        GlassCard(title: "最佳纪录", icon: "trophy.fill") {
-            HStack {
-                StatTile(label: "最高车速", value: trips.maxSpeed.map { String(format: "%.0f", $0.maxKmh) } ?? "--", unit: "km/h", color: Theme.warn)
-                StatTile(label: "最远一趟", value: trips.longest.map { String(format: "%.1f", $0.km) } ?? "--", unit: "km", color: Theme.accent)
-                StatTile(label: "最省电", value: trips.mostEfficient.flatMap(\.whPerKm).map { String(format: "%.0f", $0) } ?? "--", unit: "Wh/km", color: Theme.good)
-            }
-        }
-    }
-}
-
 struct TripRow: View {
     let trip: Trip
     var body: some View {
@@ -133,6 +77,13 @@ struct TripDetailView: View {
                                 StatTile(label: "电量", value: String(format: "%.0f→%.0f", trip.socStart, trip.socEnd), unit: "%")
                                 StatTile(label: "电费", value: String(format: "%.2f", trip.energyWh / 1000 / 0.85 * trips.price), unit: "元")
                             }
+                        }
+                    }
+                    if let tr = trip.track, tr.count >= 2 {
+                        NavigationLink { ReplayView(trip: trip) } label: {
+                            Label("回放这一趟", systemImage: "play.circle.fill")
+                                .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
+                                .background(Capsule().fill(Theme.accent)).foregroundStyle(.white)
                         }
                     }
                     if trip.samples.count > 3 {

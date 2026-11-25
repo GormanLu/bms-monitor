@@ -7,6 +7,14 @@ final class AppModel: ObservableObject {
     let ble = BLEManager()
     let ride = RideTracker()
     let trips = TripStore()
+    let nav = NavManager()
+    let charges = ChargeStore()
+    let health = HealthStore()
+    let badges = BadgeStore()
+    @Published var voiceKm: Bool = UserDefaults.standard.object(forKey: "voice.km") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(voiceKm, forKey: "voice.km") }
+    }
+    private var lastKmSpoken = 0
     private let live = LiveActivityManager()
     private let parser = FrameParser()
     private var lastRx: Date?
@@ -35,6 +43,14 @@ final class AppModel: ObservableObject {
         LogStore.shared.log("App 启动（\(Uploader.appVersion)）")
         Notifier.shared.setup()
         ble.onData = { [weak self] bytes in self?.onBytes(bytes) }
+        charges.onSaved = { [weak self] c in if c.complete { self?.badges.unlock("charge") } }
+        nav.onArrived = { [weak self] in self?.badges.unlock("nav") }
+        Notifier.shared.onAlert = { [weak self] text in
+            if self?.ride.on == true { Speaker.shared.say(text) }     // 骑车时把提醒也念出来
+        }
+        ride.onLocation = { [weak self] loc in
+            self?.nav.update(loc, gcj: UserDefaults.standard.object(forKey: "map.gcj") as? Bool ?? true)
+        }
         let nc = NotificationCenter.default
         nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
             LogStore.shared.log("App 切到后台")
@@ -61,7 +77,12 @@ final class AppModel: ObservableObject {
             }
             lastDataAt = now
         }
-        if !frames.isEmpty { Notifier.shared.check(blocks: liveBlocks) }
+        if !frames.isEmpty {
+            let bs = liveBlocks
+            Notifier.shared.check(blocks: bs)
+            charges.feed(blocks: bs, power: power)
+            health.feed(blocks: bs, summarySoc: summary?.soc)
+        }
     }
 
     // MARK: 给界面用的数
@@ -118,6 +139,7 @@ final class AppModel: ObservableObject {
         ride.start()
         tripWh = 0; tripMaxW = 0; tripSamples = []; tickCount = 0
         tripSocStart = lowest?.soc ?? 0
+        lastKmSpoken = 0
         lastTick = Date()
         UIApplication.shared.isIdleTimerDisabled = true          // 骑车时屏幕常亮
         live.start(liveState())
@@ -131,6 +153,7 @@ final class AppModel: ObservableObject {
         rideTick()
         let start = ride.startedAt ?? Date()
         let dist = ride.distM, moving = ride.movingS, vmax = ride.vMaxKmh, track = ride.track
+        nav.stop()
         live.end(liveState())
         ride.stop()
         UIApplication.shared.isIdleTimerDisabled = false
@@ -140,6 +163,7 @@ final class AppModel: ObservableObject {
                            socStart: tripSocStart, socEnd: lowest?.soc ?? tripSocStart, samples: tripSamples,
                            track: track.count >= 2 ? track : nil))
             LogStore.shared.log(String(format: "这一趟用电 %.0f Wh，最大功率 %.0f W", tripWh, tripMaxW))
+            badges.check(trips: trips.trips)
         }
         if autoUpload && Keychain.load() != nil { upload() }   // 骑完自动传一次
     }
@@ -159,6 +183,18 @@ final class AppModel: ObservableObject {
                                           p: power ?? 0, soc: lowest?.soc ?? 0))
         }
         live.update(liveState())
+        // 每骑 1 公里报一次
+        let k = Int(ride.distM / 1000)
+        if k > lastKmSpoken {
+            lastKmSpoken = k
+            if voiceKm {
+                var s = "已骑 \(k) 公里"
+                if let lo = lowest { s += "，电量 \(Int(lo.soc))%" }
+                if let r = rangeKm { s += "，还能跑 \(Int(r)) 公里" }
+                if let w = tripWhPerKm { s += "，每公里 \(Int(w.rounded())) 瓦时" }
+                Speaker.shared.say(s)
+            }
+        }
     }
 
     private func liveState() -> RideAttributes.ContentState {
@@ -183,6 +219,11 @@ final class AppModel: ObservableObject {
         s.lowIndex = lowest.flatMap { lo in bs.firstIndex { $0.id == lo.id } } ?? -1
         s.left = UserDefaults.standard.string(forKey: "island.left") ?? "speed"
         s.right = UserDefaults.standard.string(forKey: "island.right") ?? "soc"
+        if nav.active {
+            s.navText = nav.nextText
+            s.navDist = Int(nav.nextDist.rounded())
+            s.navLeftM = Int(nav.remainingM.rounded())
+        }
         return s
     }
 

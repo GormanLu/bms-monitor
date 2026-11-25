@@ -4,6 +4,8 @@ import SwiftUI
 struct RideView: View {
     @EnvironmentObject var m: AppModel
     @EnvironmentObject var ride: RideTracker
+    @EnvironmentObject var nav: NavManager
+    @State private var showSearch = false
 
     var body: some View {
         ZStack {
@@ -11,9 +13,26 @@ struct RideView: View {
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 VStack(spacing: 16) {
                     top
-                    Speedometer(speed: ride.freshSpeed ?? (ride.on ? nil : nil), maxSpeed: 50)
-                        .frame(maxWidth: .infinity)
+                    if nav.active {
+                        NavBanner()
+                        ZStack(alignment: .bottomLeading) {
+                            RouteMap(route: nav.route, follow: true)
+                                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                                Text(ride.freshSpeed.map { String(format: "%.0f", $0) } ?? "--")
+                                    .font(.system(size: 40, weight: .bold, design: .rounded)).monospacedDigit()
+                                Text("km/h").font(.caption).foregroundStyle(Theme.sub)
+                            }
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .background(RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.7)))
+                            .padding(10)
+                        }
                         .frame(height: 300)
+                    } else {
+                        Speedometer(speed: ride.freshSpeed, maxSpeed: 50)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 300)
+                    }
                     power
                     tripGrid
                     if ride.track.count >= 2 { route }
@@ -26,6 +45,7 @@ struct RideView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showSearch) { NavSearchView() }
     }
 
     private var top: some View {
@@ -41,6 +61,13 @@ struct RideView: View {
                 Text(m.rangeKm.map { String(format: "还能跑约 %.0f km", $0) } ?? "续航估算中").font(.subheadline.weight(.semibold))
             }
             Spacer()
+            Button { if nav.active { nav.stop() } else { showSearch = true } } label: {
+                Label(nav.active ? "结束导航" : "导航", systemImage: nav.active ? "xmark" : "location.magnifyingglass")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(Capsule().fill(nav.active ? Theme.bad.opacity(0.85) : Theme.accent.opacity(0.85)))
+                    .foregroundStyle(.white)
+            }
             VStack(alignment: .trailing, spacing: 2) {
                 Text(ride.on ? "已骑" : "未开始").font(.caption2).foregroundStyle(Theme.sub)
                 Text((ride.startedAt.map { Date().timeIntervalSince($0) } ?? 0).hms)
