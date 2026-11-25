@@ -27,10 +27,10 @@ enum Keychain {
 // 上传到自己的 GitHub 私有仓库，格式和网页版一样；一份不超过约 800 KB，多了就分几份。
 enum Uploader {
     static let repo = "GormanLu/bms-logs"
-    static let appVersion = "App 第 6 版"
+    static let appVersion = "App 第 7 版"
     private static let limit = 800_000
 
-    static func upload() async -> String {
+    static func upload(tail: String = "") async -> String {
         guard let token = Keychain.load(), !token.isEmpty else { return "还没有保存上传密钥：点右上角\"设置\"，把密钥粘进去。" }
         let files = await LogStore.shared.filesForUpload()
         if files.isEmpty { return "手机上没有要上传的日志。" }
@@ -61,7 +61,7 @@ enum Uploader {
         for (i, c) in chunks.enumerated() {
             let multi = chunks.count > 1
             let name = base + (multi ? "_\(i + 1)of\(chunks.count)" : "") + ".txt"
-            let body = "页面版本：\(appVersion)\n上传时间：\(stamp)\n\n=== 调试日志" + (multi ? "（第 \(i + 1) 份，共 \(chunks.count) 份）" : "") + " ===\n" + c
+            let body = "页面版本：\(appVersion)\n上传时间：\(stamp)\n\n=== 调试日志" + (multi ? "（第 \(i + 1) 份，共 \(chunks.count) 份）" : "") + " ===\n" + c + (i == chunks.count - 1 && !tail.isEmpty ? "\n" + tail + "\n" : "")
             var req = URLRequest(url: URL(string: "https://api.github.com/repos/\(repo)/contents/logs/\(name)")!)
             req.httpMethod = "PUT"
             req.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")

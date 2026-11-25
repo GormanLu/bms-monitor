@@ -171,3 +171,49 @@ final class HealthStore: ObservableObject {
     }
 }
 
+
+// MARK: - 打卡快照（和网页的"每日打卡"一样，上传时也是同样的表格）
+struct Snap: Codable, Identifiable {
+    var id = UUID()
+    var t: Date
+    var note: String
+    var soc: Double          // 保护板汇总电量
+    var gapMv: Int           // 整组压差
+    var lowName: String      // 平均电压最低的一块
+    var lowMv: Int           // 它比其他块平均低多少
+    var current: Double
+    var lo: Double
+    var hi: Double
+    var temp: String
+    var socMin: Double       // 最低一块的电量
+}
+
+final class SnapStore: ObservableObject {
+    static let notes = ["放了一夜", "静置几小时", "静置半小时以上", "刚停车", "充电中", "刚充满", "骑行中"]
+    @Published private(set) var snaps: [Snap] = []
+    @Published var note: String = UserDefaults.standard.string(forKey: "snap.note") ?? "放了一夜" {
+        didSet { UserDefaults.standard.set(note, forKey: "snap.note") }
+    }
+    private let file = JSONFile<[Snap]>("snaps.json")
+
+    init() { snaps = file.load() ?? [] }
+
+    func add(_ s: Snap) {
+        snaps.insert(s, at: 0)
+        if snaps.count > 1000 { snaps.removeLast(snaps.count - 1000) }
+        file.save(snaps)
+    }
+
+    func delete(at o: IndexSet) { snaps.remove(atOffsets: o); file.save(snaps) }
+
+    func csv() -> String {
+        let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX"); df.dateFormat = "yyyy-MM-dd HH:mm"
+        var lines = ["时间,状态,电量%,压差mV,最低的一块,这一块平均每节低mV,电流A,最低V,最高V,温度,最低块电量%"]
+        for s in snaps.reversed() {
+            lines.append([df.string(from: s.t), s.note, String(format: "%g", s.soc), "\(s.gapMv)", "模块 " + s.lowName, "\(s.lowMv)",
+                          String(format: "%.2f", s.current), String(format: "%.3f", s.lo), String(format: "%.3f", s.hi), s.temp,
+                          String(format: "%g", s.socMin)].joined(separator: ","))
+        }
+        return lines.joined(separator: "\n")
+    }
+}

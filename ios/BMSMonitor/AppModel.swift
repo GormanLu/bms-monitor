@@ -12,6 +12,9 @@ final class AppModel: ObservableObject {
     let health = HealthStore()
     let badges = BadgeStore()
     let stats = BatteryStats()
+    let snaps = SnapStore()
+    @Published var checkInMsg = ""
+    @Published var checkingIn = false
     @Published var voiceKm: Bool = UserDefaults.standard.object(forKey: "voice.km") as? Bool ?? true {
         didSet { UserDefaults.standard.set(voiceKm, forKey: "voice.km") }
     }
@@ -240,6 +243,61 @@ final class AppModel: ObservableObject {
     }
     func evaluateBadges() { badges.evaluate(badgeCtx()) }
 
+    // MARK: 一键打卡：连上电池 → 等五块数据收齐 → 等电流稳定 → 记一条快照 → 上传
+    func checkIn() {
+        guard !checkingIn else { return }
+        checkingIn = true
+        checkInMsg = "正在连接电池…"
+        if !ble.connected { ble.connect() }
+        Task { @MainActor in
+            defer { self.checkingIn = false }
+            let t0 = Date()
+            while self.liveBlocks.count < 5 || self.summary == nil {
+                if Date().timeIntervalSince(t0) > 40 {
+                    self.checkInMsg = self.ble.connected ? "40 秒内没收齐五块的数据，没有记录。请靠近电池再试一次。" : "没连上电池，没有记录。请靠近电池再试一次。"
+                    return
+                }
+                if self.ble.scanning { self.checkInMsg = "请在弹出的列表里选名称结尾 01 的那一块" }
+                else if self.ble.connected { self.checkInMsg = "已连接，正在等五块的数据收齐…" }
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+            // 电流还在变就等一会儿（最多 20 秒），各块电流差 3 安以内才记
+            let t1 = Date()
+            while Date().timeIntervalSince(t1) < 20 {
+                let cs = self.liveBlocks.map(\.current)
+                if let a = cs.max(), let b = cs.min(), a - b <= 3 { break }
+                self.checkInMsg = "电流还在变，等它稳定再记…"
+                try? await Task.sleep(nanoseconds: 500_000_000)
+            }
+            let bs = self.liveBlocks
+            let cells = bs.flatMap(\.cells)
+            let means = bs.map { b in (b, b.cells.reduce(0, +) / Double(b.cells.count)) }
+            guard let hi = cells.max(), let lo = cells.min(), let low = means.min(by: { $0.1 < $1.1 }) else { return }
+            let others = means.filter { $0.0.id != low.0.id }.map(\.1)
+            let lowMv = Int(((others.reduce(0, +) / Double(max(others.count, 1)) - low.1) * 1000).rounded())
+            let temps = bs.flatMap(\.temps)
+            let snap = Snap(t: Date(), note: self.snaps.note, soc: self.summary?.soc ?? (self.lowest?.soc ?? 0),
+                            gapMv: Int(((hi - lo) * 1000).rounded()), lowName: low.0.name, lowMv: lowMv,
+                            current: self.current ?? 0, lo: lo, hi: hi,
+                            temp: "\(temps.min() ?? 0)~\(temps.max() ?? 0)", socMin: self.lowest?.soc ?? 0)
+            self.snaps.add(snap)
+            LogStore.shared.log(String(format: "打卡（%@）：电量 %g%%，整组压差 %d mV，最低的一块 %@ 平均每节低 %d mV，电流 %.2f A",
+                                       snap.note, snap.soc, snap.gapMv, snap.lowName, snap.lowMv, snap.current))
+            if ["放了一夜", "静置几小时", "静置半小时以上"].contains(snap.note) {
+                if !(self.health.records.first.map { Calendar.current.isDateInToday($0.date) } ?? false) {
+                    self.health.add(blocks: bs, summarySoc: self.summary?.soc, manual: true)
+                }
+            }
+            let summary = "已记下：整组压差 \(snap.gapMv) mV，\(snap.lowName) 低 \(snap.lowMv) mV。"
+            if Keychain.load() == nil { self.checkInMsg = summary + "还没有保存上传密钥，所以没有上传。"; return }
+            self.checkInMsg = summary + "正在上传…"
+            let tail = "=== 快照 ===\n" + self.snaps.csv()
+            let msg = await Uploader.upload(tail: tail)
+            self.checkInMsg = summary + (msg.hasPrefix("已上传") ? "已上传。" : msg)
+            self.refreshStored()
+        }
+    }
+
     // MARK: 上传
     func upload() {
         guard !uploading else { return }
@@ -248,7 +306,8 @@ final class AppModel: ObservableObject {
         var bg = UIBackgroundTaskIdentifier.invalid
         bg = UIApplication.shared.beginBackgroundTask(withName: "upload") { UIApplication.shared.endBackgroundTask(bg) }
         Task {
-            let msg = await Uploader.upload()
+            let tail = await MainActor.run { "=== 快照 ===\n" + self.snaps.csv() }
+            let msg = await Uploader.upload(tail: tail)
             let size = await LogStore.shared.storedBytes()
             await MainActor.run {
                 self.uploadMsg = msg

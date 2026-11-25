@@ -5,6 +5,7 @@ struct HomeView: View {
     @EnvironmentObject var ble: BLEManager
     @EnvironmentObject var ride: RideTracker
     @EnvironmentObject var stats: BatteryStats
+    @EnvironmentObject var snaps: SnapStore
     @EnvironmentObject var health: HealthStore
 
     var body: some View {
@@ -16,6 +17,7 @@ struct HomeView: View {
                         VStack(spacing: 14) {
                             connection
                             hero
+                            checkIn
                             if m.liveBlocks.count >= 2 { pack }
                             life
                             if m.isCharging { charging }
@@ -108,6 +110,37 @@ struct HomeView: View {
             }
             Text("每块下面依次是电量、块内压差、温度。橙色边框是电量最低的一块。")
                 .font(.caption2).foregroundStyle(Theme.faint)
+        }
+    }
+
+    // MARK: 一键打卡
+    private var checkIn: some View {
+        GlassCard(title: "每日打卡", icon: "checkmark.seal.fill") {
+            HStack {
+                Picker("状态", selection: $snaps.note) {
+                    ForEach(SnapStore.notes, id: \.self) { Text($0).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .tint(.white)
+                Spacer()
+                Button { m.checkIn() } label: {
+                    Label(m.checkingIn ? "打卡中…" : "一键打卡", systemImage: "hand.tap.fill")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.borderedProminent).tint(Theme.accent)
+                .disabled(m.checkingIn)
+            }
+            Text(m.checkInMsg.isEmpty ? "选好电池现在的状态再点：自动连接、等数据收齐、记一条快照并上传。" : m.checkInMsg)
+                .font(.caption).foregroundStyle(m.checkInMsg.isEmpty ? Theme.faint : Theme.sub)
+            if !snaps.snaps.isEmpty {
+                ForEach(snaps.snaps.prefix(3)) { s in
+                    HStack {
+                        Text(s.t.formatted(.dateTime.month().day().hour().minute()) + " · " + s.note).font(.caption)
+                        Spacer()
+                        Text("压差 \(s.gapMv) mV · \(s.lowName) 低 \(s.lowMv)").font(.caption).foregroundStyle(Theme.sub).monospacedDigit()
+                    }
+                }
+            }
         }
     }
 
