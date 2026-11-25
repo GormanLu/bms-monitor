@@ -12,12 +12,13 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
     @Published var distM: Double = 0
     @Published var vMaxKmh: Double = 0
     @Published var note = ""
+    @Published private(set) var startedAt: Date?
+    @Published private(set) var movingS: Double = 0
 
     private let lm = CLLocationManager()
     private var anchor: CLLocation?
     private var prev: CLLocation?
     private var prevSpeed: Double?
-    private var moveS: Double = 0
     private var firstT: Date?
     private var lastT: Date?
 
@@ -42,7 +43,7 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
         lm.allowsBackgroundLocationUpdates = true
         lm.showsBackgroundLocationIndicator = true
         anchor = nil; prev = nil; prevSpeed = nil
-        distM = 0; vMaxKmh = 0; moveS = 0; firstT = nil; lastT = nil
+        distM = 0; vMaxKmh = 0; movingS = 0; firstT = nil; lastT = nil; startedAt = Date()
         speedKmh = nil; speedAt = nil
         st = Stat()
         on = true
@@ -58,13 +59,20 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
         if let a = firstT, let b = lastT, distM >= 100 {
             let total = b.timeIntervalSince(a)
             let avg = total > 0 ? distM / total * 3.6 : 0
-            let moveAvg = moveS > 10 ? distM / moveS * 3.6 : 0
+            let moveAvg = movingS > 10 ? distM / movingS * 3.6 : 0
             LogStore.shared.log(String(format: "本次骑行：里程 %.2f km，用时 %.0f 分钟，平均车速 %.1f km/h（不算停车 %.1f），最高车速 %.1f km/h",
                                        distM / 1000, total / 60, avg, moveAvg, vMaxKmh))
         }
         LogStore.shared.log("退出骑行模式")
         on = false
         speedKmh = nil
+        startedAt = nil
+    }
+
+    /// 现在的车速，超过 5 秒没有新定位就当作不知道
+    var freshSpeed: Double? {
+        guard on, let v = speedKmh, let t = speedAt, Date().timeIntervalSince(t) < 5 else { return nil }
+        return v
     }
 
     private func handle(_ l: CLLocation) {
@@ -93,7 +101,7 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
             speedKmh = s * 3.6
             speedAt = now
             if let ps = prevSpeed { vMaxKmh = max(vMaxKmh, min(s, ps) * 3.6) }   // 连续两次都达到才算最高车速
-            if s > 0.56 && gap > 0 && gap <= 3 { moveS += gap }
+            if s > 0.56 && gap > 0 && gap <= 3 { movingS += gap }
             prevSpeed = s
         }
         prev = l
