@@ -187,7 +187,7 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
 <body>
 <main>
   <header>
-    <h1>电池监控<small>第 27 版</small></h1>
+    <h1>电池监控<small>第 28 版</small></h1>
     <span class="pill" id="status">未连接</span>
   </header>
 
@@ -312,9 +312,10 @@ nav.tabs button.active { color: var(--accent); background: var(--accent-soft); f
       <p class="note" id="chgInfo"></p>
     </section>
 
-    <div class="row" style="margin-bottom:12px">
+    <div class="row" style="margin-bottom:4px">
       <button class="primary big" id="btnUpload">上传日志给 Claude</button>
     </div>
+    <p class="note" id="ldbInfo" style="margin:0 4px 12px"></p>
   </div>
 
   <!-- ===== 工具 ===== -->
@@ -455,12 +456,83 @@ const state = { cells: [] };
 // ---------- 日志 ----------
 const logHead = [], logTail = [];
 function log(msg) {
-  const t = new Date().toTimeString().slice(0, 8);
+  const now = Date.now(), t = new Date(now).toTimeString().slice(0, 8);
   const line = t + ' ' + msg;
   if (logHead.length < 120) logHead.push(line);
   else { logTail.push(line); if (logTail.length > 3600) logTail.shift(); }
+  ldbPush(now, line);
   if ($('dbg').open) renderLog();
 }
+
+// ---------- 本地日志库 ----------
+// 页面内存里只留最近 3600 行（约 50 分钟），刷新页面就没了。所以每一行也存进手机的本地数据库（IndexedDB），
+// 上传时把库里存着的全部传上去，全部传成功以后才删掉。最多存 15 万行（约 30 小时的数据），再多就删最早的。
+const LDB_NAME = 'bms-log-db', LDB_STORE = 'lines', LDB_MAX = 150000;
+let ldb = null, ldbBuf = [], ldbTimer = null, ldbN = 0, ldbFirst = 0, ldbLast = 0, ldbBusy = false;
+function ldbReq(r) { return new Promise((ok, bad) => { r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error); }); }
+function ldbPush(time, line) {
+  ldbBuf.push({ t: time, s: line });
+  if (ldbBuf.length > 30000) ldbBuf.splice(0, ldbBuf.length - 30000);   // 数据库一直打不开时，内存里也别无限涨
+  if (!ldbTimer) ldbTimer = setTimeout(ldbFlush, 2000);
+}
+async function ldbFlush() {                     // 把攒着的几行一次写进数据库
+  if (ldbTimer) { clearTimeout(ldbTimer); ldbTimer = null; }
+  if (!ldb || !ldbBuf.length) return;
+  const batch = ldbBuf; ldbBuf = [];
+  try {
+    await new Promise((ok, bad) => {
+      const tx = ldb.transaction(LDB_STORE, 'readwrite'), st = tx.objectStore(LDB_STORE);
+      for (const x of batch) st.add(x);
+      tx.oncomplete = ok; tx.onerror = tx.onabort = () => bad(tx.error);
+    });
+    ldbN += batch.length; if (!ldbFirst) ldbFirst = batch[0].t; ldbLast = batch[batch.length - 1].t;
+    if (ldbN > LDB_MAX + 5000) await ldbPrune();
+    ldbInfo();
+  } catch (e) { ldbBuf = batch.concat(ldbBuf); }   // 没写进去：放回去，下次再试
+}
+async function ldbPrune() {                     // 超过上限：删掉最早的那些
+  try {
+    const st = ldb.transaction(LDB_STORE, 'readwrite').objectStore(LDB_STORE);
+    const keys = await ldbReq(st.getAllKeys(null, ldbN - LDB_MAX));
+    if (keys.length) await ldbReq(st.delete(IDBKeyRange.upperBound(keys[keys.length - 1])));
+    await ldbStat();
+  } catch (e) { /* 忽略 */ }
+}
+async function ldbStat() {                      // 数一数库里有多少行、最早和最晚是什么时候
+  if (!ldb) return;
+  try {
+    const st = ldb.transaction(LDB_STORE, 'readonly').objectStore(LDB_STORE);
+    ldbN = await ldbReq(st.count());
+    const first = await ldbReq(st.openCursor()), last = await ldbReq(st.openCursor(null, 'prev'));
+    ldbFirst = first ? first.value.t : 0; ldbLast = last ? last.value.t : 0;
+  } catch (e) { /* 忽略 */ }
+  ldbInfo();
+}
+function ldbInfo() {
+  const el = document.getElementById('ldbInfo'); if (!el) return;
+  const f = ms => { const d = new Date(ms); return (d.getMonth() + 1) + '-' + d.getDate() + ' ' + d.toTimeString().slice(0, 5); };
+  el.textContent = !ldb ? '这个浏览器不能在本地保存日志，只能上传最近 50 分钟左右的数据，骑完请尽快上传。'
+    : ldbN ? '手机上存着 ' + ldbN + ' 行还没上传的日志（' + f(ldbFirst) + ' ～ ' + f(ldbLast) + '）。点上传会全部传上去，传成功后自动从手机上删掉。'
+    : '手机上没有没上传的日志。';
+}
+async function ldbAll() {                       // 读出库里全部的行（上传用）
+  await ldbFlush();
+  if (!ldb) return null;
+  try { return await ldbReq(ldb.transaction(LDB_STORE, 'readonly').objectStore(LDB_STORE).getAll()); } catch (e) { return null; }
+}
+async function ldbDropUpTo(maxId) {             // 上传成功：删掉已经传上去的那些
+  try { await ldbReq(ldb.transaction(LDB_STORE, 'readwrite').objectStore(LDB_STORE).delete(IDBKeyRange.upperBound(maxId))); } catch (e) { /* 忽略 */ }
+  await ldbStat();
+}
+(async () => {
+  try {
+    const r = indexedDB.open(LDB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(LDB_STORE, { keyPath: 'id', autoIncrement: true });
+    ldb = await ldbReq(r);
+  } catch (e) { ldb = null; }
+  await ldbStat();
+  ldbFlush();
+})();
 function logText() {
   return logHead.concat(logTail.length ? ['……（中间省略）……'] : [], logTail).join('\n');
 }
@@ -526,7 +598,11 @@ function jbdResponse(cmd, data) {            // 只给演示模式用：拼一�
   return Uint8Array.from([0xDD, cmd, 0x00, data.length, ...data, chk >> 8, chk & 0xff, 0x77]);
 }
 
+let lastRxAt = 0;
 function onBytes(u8) {
+  const rxNow = Date.now();
+  if (lastRxAt && rxNow - lastRxAt > 15000) log('中间有 ' + Math.round((rxNow - lastRxAt) / 1000) + ' 秒没有收到电池数据');
+  lastRxAt = rxNow;
   log('收 ' + hex(u8));
   if (Date.now() - vxAt > 1500) vx = [];      // 隔了很久的半截数据不要了
   vxAt = Date.now();
@@ -1356,7 +1432,7 @@ async function copyText(text, boxId) {
 $('btnCsv').onclick = () => copyText(csvText(), 'csvBox');
 $('btnCopyLog').onclick = () => copyText(logText(), 'logBox');
 // ---------- 上传日志到自己的 GitHub 私有仓库 ----------
-const PAGE_VERSION = '第 27 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
+const PAGE_VERSION = '第 28 版', LOG_REPO = 'GormanLu/bms-logs', TOKEN_KEY = 'bms-upload-token';
 const getToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; } };
 function renderToken() {
   $('tokenState').textContent = getToken() ? '密钥已保存在这台手机上。要换密钥就重新粘贴保存；留空保存可以删除。' : '还没有设置密钥。';
@@ -1386,24 +1462,62 @@ async function uploadLog() {
   let ok = false;
   const d = new Date(), p = n => String(n).padStart(2, '0');
   const day = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
-  const name = day + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds()) + '.txt';
-  const text = ['页面版本：' + PAGE_VERSION, '上传时间：' + day + ' ' + d.toTimeString().slice(0, 8), '',
-    '=== 未识别字节 ===', $('rawFields').textContent, '', '=== 调试日志 ===', logText(), '', '=== 快照 ===', snapCsv(), '', '=== 压差记录 ===', csvText(), '', '=== 充电记录 ===', chgCsv()].join('\n');
+  const base = day + '_' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
   $('btnUpload').disabled = $('btnUpload2').disabled = true;
-  banner('正在上传…');
+  banner('正在整理日志…');
+  // 调试日志：本地库里存着的全部；跨天的地方插一行日期。本地库用不了时，退回到内存里的最近 50 分钟
+  const rows = await ldbAll();
+  let lines, maxId = 0;
+  if (rows && rows.length) {
+    lines = []; let lastDay = '';
+    for (const r of rows) {
+      const dd = new Date(r.t), dk = dd.getFullYear() + '-' + p(dd.getMonth() + 1) + '-' + p(dd.getDate());
+      if (dk !== lastDay) { lines.push('—— ' + dk + ' ——'); lastDay = dk; }
+      lines.push(r.s);
+      if (r.id > maxId) maxId = r.id;
+    }
+  } else lines = logText().split('\n');
+  // 一份不超过约 800 KB：太大的话分成几份，第一份带页面版本和未识别字节，最后一份带快照、压差记录、充电记录
+  const head = ['页面版本：' + PAGE_VERSION, '上传时间：' + day + ' ' + d.toTimeString().slice(0, 8), '', '=== 未识别字节 ===', $('rawFields').textContent, ''];
+  const tail = ['', '=== 快照 ===', snapCsv(), '', '=== 压差记录 ===', csvText(), '', '=== 充电记录 ===', chgCsv()];
+  const LIMIT = 800000, enc = new TextEncoder(), chunks = [];
+  let cur = [], size = 0;
+  for (const s of lines) {
+    const n = enc.encode(s).length + 1;
+    if (size + n > LIMIT && cur.length) { chunks.push(cur); cur = []; size = 0; }
+    cur.push(s); size += n;
+  }
+  chunks.push(cur);
+  const parts = chunks.map((c, i) => {
+    const tag = chunks.length > 1 ? '（第 ' + (i + 1) + ' 份，共 ' + chunks.length + ' 份）' : '';
+    return (i === 0 ? head : ['页面版本：' + PAGE_VERSION, '上传时间：' + day + ' ' + d.toTimeString().slice(0, 8), ''])
+      .concat(['=== 调试日志' + tag + ' ===']).concat(c).concat(i === chunks.length - 1 ? tail : []).join('\n');
+  });
+  let sent = 0, why = '';
   try {
-    const res = await fetch('https://api.github.com/repos/' + LOG_REPO + '/contents/logs/' + name, {
-      method: 'PUT',
-      headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: '上传日志 ' + name, content: b64utf8(text) }),
-    });
-    ok = res.ok;
-    if (res.ok) banner('已上传：' + name + '。跟 Claude 说一声"传了"就行。');
-    else if (res.status === 401) banner('上传失败：密钥不对或者已经过期，请重新设置。');
-    else if (res.status === 403 || res.status === 404) banner('上传失败：这个密钥没有日志仓库的写入权限（' + res.status + '）。');
-    else banner('上传失败：GitHub 返回了 ' + res.status + '。');
-  } catch (e) {
-    banner('上传失败：连不上 GitHub（' + errText(e) + '）。可以先用"分享日志"。');
+    for (let i = 0; i < parts.length; i++) {
+      const name = base + (parts.length > 1 ? '_' + (i + 1) + 'of' + parts.length : '') + '.txt';
+      banner('正在上传' + (parts.length > 1 ? '第 ' + (i + 1) + ' 份，共 ' + parts.length + ' 份' : '') + '…');
+      const res = await fetch('https://api.github.com/repos/' + LOG_REPO + '/contents/logs/' + name, {
+        method: 'PUT',
+        headers: { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: '上传日志 ' + name, content: b64utf8(parts[i]) }),
+      });
+      if (!res.ok) {
+        why = res.status === 401 ? '密钥不对或者已经过期，请重新设置。'
+          : res.status === 403 || res.status === 404 ? '这个密钥没有日志仓库的写入权限（' + res.status + '）。'
+          : 'GitHub 返回了 ' + res.status + '。';
+        break;
+      }
+      sent++;
+    }
+  } catch (e) { why = '连不上 GitHub（' + errText(e) + '）。'; }
+  ok = sent === parts.length;
+  if (ok) {
+    if (maxId) await ldbDropUpTo(maxId);        // 全部传成功了，才把这些从手机上删掉
+    banner('已上传' + (parts.length > 1 ? ' ' + parts.length + ' 份' : '') + '：' + base + '。跟 Claude 说一声"传了"就行。');
+  } else {
+    banner('上传失败：' + why + (sent ? '（已传上去 ' + sent + ' 份，' : '（') + '手机上的日志都还留着，下次上传会再传一遍。）');
   }
   $('btnUpload').disabled = $('btnUpload2').disabled = false;
   return ok;
@@ -1760,6 +1874,19 @@ function releaseAwake() {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && wantConnected) keepAwake();
 });
+// 苹果手机上，网页切到后台就会被系统暂停，蓝牙数据和定位都会停；开着骑行小窗时不会。记下来，方便知道哪段数据是怎么断的
+let hiddenAt = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    hiddenAt = Date.now();
+    log('页面切到后台' + (typeof pipActive === 'function' && pipActive() ? '（小窗开着）' : '（没开小窗）'));
+    ldbFlush();
+  } else if (hiddenAt) {
+    log('页面回到前台，离开了 ' + Math.round((Date.now() - hiddenAt) / 1000) + ' 秒');
+    hiddenAt = 0;
+  }
+});
+window.addEventListener('pagehide', () => { ldbFlush(); });
 $('btnConnect').onclick = connect;
 $('btnDisconnect').onclick = disconnect;
 
