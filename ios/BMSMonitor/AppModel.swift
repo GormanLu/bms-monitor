@@ -162,13 +162,28 @@ final class AppModel: ObservableObject {
     }
 
     private func liveState() -> RideAttributes.ContentState {
-        RideAttributes.ContentState(
+        let bs = liveBlocks
+        var s = RideAttributes.ContentState(
             speed: ride.freshSpeed.map { Int($0.rounded()) } ?? -1,
             soc: lowest?.soc ?? 0,
             power: Int((power ?? 0).rounded()),
             distKm: ride.distM / 1000,
             rangeKm: rangeKm.map { Int($0) } ?? -1,
             charging: isCharging)
+        let i = current ?? 0
+        s.current = abs(i) < 0.6 ? 0 : -i
+        s.voltage = totalV ?? 0
+        s.tempMax = tempRange?.1 ?? -99
+        s.avgKmh = ride.movingS > 10 ? Int((ride.distM / ride.movingS * 3.6).rounded()) : -1
+        s.maxKmh = Int(ride.vMaxKmh.rounded())
+        s.tripWh = Int(tripWh.rounded())
+        s.whPerKm = tripWhPerKm.map { Int($0.rounded()) } ?? -1
+        s.blockNames = bs.map(\.name)
+        s.blockSocs = bs.map { Int($0.soc) }
+        s.lowIndex = lowest.flatMap { lo in bs.firstIndex { $0.id == lo.id } } ?? -1
+        s.left = UserDefaults.standard.string(forKey: "island.left") ?? "speed"
+        s.right = UserDefaults.standard.string(forKey: "island.right") ?? "soc"
+        return s
     }
 
     var tripWhPerKm: Double? { ride.distM >= 500 && tripWh > 1 ? tripWh / (ride.distM / 1000) : nil }

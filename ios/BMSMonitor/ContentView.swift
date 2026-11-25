@@ -54,6 +54,8 @@ struct SettingsView: View {
     @AppStorage("notify.charge") private var notifyCharge = true
     @AppStorage("notify.temp") private var notifyTemp = true
     @AppStorage("map.gcj") private var mapGcj = true
+    @AppStorage("island.left") private var islandLeft = "speed"
+    @AppStorage("island.right") private var islandRight = "soc"
 
     var body: some View {
         NavigationStack {
@@ -66,6 +68,14 @@ struct SettingsView: View {
                     Toggle("充满时提醒", isOn: $notifyCharge)
                     Toggle("电量低于 20% 和 10% 时提醒", isOn: $notifyLow)
                     Toggle("电池温度到 50 °C 时提醒", isOn: $notifyTemp)
+                }
+                Section(header: Text("灵动岛"), footer: Text("灵动岛收起时左右两边各显示一个数，在这里选。长按灵动岛展开、或者看锁屏，能看到全部：车速、电量、续航、功率、电流、里程、用时、平均车速、温度、五块电池的电量。")) {
+                    Picker("左边", selection: $islandLeft) {
+                        ForEach(IslandItem.allCases) { Text($0.title).tag($0.rawValue) }
+                    }
+                    Picker("右边", selection: $islandRight) {
+                        ForEach(IslandItem.allCases) { Text($0.title).tag($0.rawValue) }
+                    }
                 }
                 Section(header: Text("轨迹"), footer: Text("国内地图的坐标和手机定位的坐标不一样，画轨迹前要换算。要是轨迹和道路明显错开几百米，关掉这个试试。轨迹只存在这台手机里，不会上传。")) {
                     Toggle("轨迹偏移校正", isOn: $mapGcj)
