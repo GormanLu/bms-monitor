@@ -100,6 +100,7 @@ struct NavBanner: View {
 // MARK: 搜索目的地、看路线、查电量够不够
 struct NavSearchView: View {
     @EnvironmentObject var m: AppModel
+    @EnvironmentObject var favs: FavStore
     @EnvironmentObject var nav: NavManager
     @EnvironmentObject var ride: RideTracker
     @Environment(\.dismiss) private var dismiss
@@ -147,6 +148,18 @@ struct NavSearchView: View {
                     }
                 }
             }
+            if !favs.places.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack {
+                        ForEach(Array(favs.places.enumerated()), id: \.element.id) { i, p in
+                            Button { picked = true; nav.plan(to: p.item) } label: { Label(p.name, systemImage: "star.fill") }
+                                .buttonStyle(.borderedProminent).tint(Theme.warn.opacity(0.8))
+                                .contextMenu { Button("删除这个常去地点", role: .destructive) { favs.delete(at: IndexSet(integer: i)) } }
+                        }
+                    }
+                }
+                Text("常去地点：点一下直接规划路线，长按可以删除").font(.caption2).foregroundStyle(Theme.faint)
+            }
             if !nav.message.isEmpty { Text(nav.message).font(.caption).foregroundStyle(Theme.warn) }
             List(nav.results, id: \.self) { item in
                 Button {
@@ -188,6 +201,13 @@ struct NavSearchView: View {
                     }
                     Text("预计时间按 15 km/h 算").font(.caption2).foregroundStyle(Theme.faint)
                     if !nav.message.isEmpty { Text(nav.message).font(.caption).foregroundStyle(Theme.warn) }
+                }
+                if let d = nav.destination {
+                    Button { favs.add(d) } label: {
+                        Label(favs.has(d) ? "已在常去地点里" : "加到常去地点", systemImage: favs.has(d) ? "star.fill" : "star")
+                            .font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered).tint(Theme.warn).disabled(favs.has(d))
                 }
                 GlassCard(title: "电量够不够", icon: "battery.75") {
                     Label(check.0, systemImage: check.2).font(.subheadline.weight(.semibold)).foregroundStyle(check.1)

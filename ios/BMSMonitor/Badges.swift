@@ -10,6 +10,8 @@ struct BadgeCtx {
     var health: [HealthRecord]
     var navArrivals: Int
     var cycles: Double
+    var accelBest: Double? = nil
+    var challenges = 0
 }
 
 struct BadgeDef: Identifiable {
@@ -73,7 +75,7 @@ final class BadgeStore: ObservableObject {
 
     func navArrived() { navCount += 1; save() }
 
-    var points: Int { tiers.values.reduce(0) { acc, t in acc + Tier.points.prefix(max(0, min(t, 4))).reduce(0, +) } }
+    var points: Int { tiers.values.reduce(0) { acc, t in acc + Tier.points.prefix(max(0, min(t, 4))).reduce(0, +) } + ChallengeStore.shared.points }
     var unlockedCount: Int { tiers.values.filter { $0 > 0 }.count }
 
     static let levels: [(Int, String)] = [(0, "新手骑手"), (60, "熟练骑手"), (180, "老司机"), (400, "骑行达人"), (800, "电驴传奇"), (1500, "三轮之王")]
@@ -136,6 +138,14 @@ final class BadgeStore: ObservableObject {
             BadgeDef(id: "eco", title: "省电达人", icon: "leaf.fill", category: "技术", unit: "Wh/km", tiers: [30, 27, 24, 21], lowerIsBetter: true, how: "单趟 3 公里以上、每公里不到 {n} Wh") {
                 $0.trips.filter { $0.km >= 3 }.compactMap(\.whPerKm).min()
             },
+            BadgeDef(id: "climb", title: "爬坡", icon: "mountain.2.fill", category: "技术", unit: "m", tiers: [50, 300, 1500, 5000], how: "累计爬升 {n} 米") {
+                $0.trips.reduce(0) { $0 + ($1.climbM ?? 0) }
+            },
+            BadgeDef(id: "smooth", title: "老司机", icon: "star.fill", category: "技术", unit: "分", tiers: [80, 85, 90, 95], how: "单趟驾驶评分 {n} 分以上") {
+                $0.trips.compactMap { $0.score.map { Double($0.total) } }.max()
+            },
+            BadgeDef(id: "accel", title: "弹射", icon: "bolt.fill", category: "技术", unit: "秒", tiers: [12, 10, 8, 7], lowerIsBetter: true, how: "加速测试 0～30 用时 {n} 秒以内") { $0.accelBest },
+            BadgeDef(id: "challenge", title: "挑战者", icon: "flag.checkered", category: "习惯", unit: "天", tiers: [1, 7, 30, 100], how: "完成每日挑战 {n} 次") { Double($0.challenges) },
             BadgeDef(id: "nav", title: "认路", icon: "location.north.circle.fill", category: "技术", unit: "次", tiers: [1, 5, 20, 50], how: "用导航到达 {n} 次") { Double($0.navArrivals) },
             BadgeDef(id: "streak", title: "坚持", icon: "flame.fill", category: "习惯", unit: "天", tiers: [3, 7, 14, 30], how: "连续 {n} 天都骑车") { streak($0.trips) },
             BadgeDef(id: "days", title: "活跃", icon: "calendar.badge.checkmark", category: "习惯", unit: "天", tiers: [5, 20, 60, 150], how: "骑车的日子累计 {n} 天") {

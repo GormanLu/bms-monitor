@@ -6,6 +6,8 @@ struct TripSample: Codable {
     var v: Double      // 车速 km/h
     var p: Double      // 电池输出功率 W（回充为负）
     var soc: Double    // 最低一块的电量 %
+    var a: Double? = nil       // 相对出发点的高度（米，气压计）
+    var bv: [Double]? = nil    // 各块平均每节电压
 }
 
 /// 轨迹点：经纬度是手机定位给的原始坐标（WGS-84），只存在手机里
@@ -29,6 +31,10 @@ struct Trip: Codable, Identifiable {
     var socEnd: Double
     var samples: [TripSample]
     var track: [TrackPoint]? = nil
+    var climbM: Double? = nil
+    var descentM: Double? = nil
+    var score: DriveScore? = nil
+    var blockNames: [String]? = nil
 
     var km: Double { distM / 1000 }
     var duration: TimeInterval { end.timeIntervalSince(start) }

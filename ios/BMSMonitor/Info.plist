@@ -24,6 +24,8 @@
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>连接三轮车电池的保护板，读取电压、电流和温度。只读取，不会改动电池。</string>
+	<key>NSMotionUsageDescription</key>
+	<string>用气压计测骑行时的爬坡高度；打开摔车检测时用来感知剧烈撞击。数据只在手机上。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>骑行时计算车速、里程，记录骑行轨迹。位置和轨迹只存在手机上，不会上传。</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>

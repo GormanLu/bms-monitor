@@ -36,6 +36,20 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
     }
 
+    func postNow(_ title: String, _ body: String) { post(title, body) }
+
+    /// 定时提醒（同一个 id 会覆盖上一次的）
+    func schedule(_ id: String, _ title: String, _ body: String, at date: Date) {
+        let c = UNMutableNotificationContent()
+        c.title = title
+        c.body = body
+        c.sound = .default
+        let trig = UNTimeIntervalNotificationTrigger(timeInterval: max(5, date.timeIntervalSinceNow), repeats: false)
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: c, trigger: trig))
+    }
+
+    func cancel(_ id: String) { UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [id]) }
+
     private func post(_ title: String, _ body: String) {
         onAlert?(title + "。" + body)
         let c = UNMutableNotificationContent()
@@ -67,7 +81,13 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         // 充满：充了 10 分钟以上，然后所有块都不进电了，而且有保护板把充电关掉
         let charging = blocks.contains { $0.current > 0.5 } && !blocks.contains { $0.current < -2 }
         if charging {
-            if chargingSince == nil { chargingSince = now }
+            if chargingSince == nil {
+                chargingSince = now
+                // 天冷充电：磷酸铁锂在 0 °C 以下充电会伤电池（析锂），5 °C 以下也最好慢充
+                if let t = blocks.flatMap(\.temps).min(), t <= 3, tempOn {
+                    post("电池只有 \(t) °C", t <= 0 ? "0 °C 以下充电会伤磷酸铁锂电池，最好推到暖和的地方，等电池回温再充。" : "温度偏低，充电会慢一些，保护板也可能限流。能的话放到室内再充。")
+                }
+            }
         } else if let since = chargingSince {
             let allStopped = blocks.allSatisfy { abs($0.current) < 0.3 }
             if allStopped {

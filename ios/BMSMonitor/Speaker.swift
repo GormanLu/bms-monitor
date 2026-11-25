@@ -5,6 +5,7 @@ import AVFoundation
 final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
     static let shared = Speaker()
     private let synth = AVSpeechSynthesizer()
+    var hold = false          // 声浪开着时说完话不要把音频关掉
 
     override init() {
         super.init()
@@ -14,7 +15,7 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
     func say(_ s: String) {
         guard !s.isEmpty else { return }
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
+        if !hold { try? session.setCategory(.playback, mode: .voicePrompt, options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers]) }
         try? session.setActive(true)
         let u = AVSpeechUtterance(string: s)
         u.voice = AVSpeechSynthesisVoice(language: "zh-CN")
@@ -23,7 +24,7 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        if !synthesizer.isSpeaking {
+        if !synthesizer.isSpeaking && !hold {
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
     }

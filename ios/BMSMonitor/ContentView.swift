@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var m: AppModel
+    @AppStorage("theme") private var theme = "blue"
 
     var body: some View {
         TabView(selection: $m.tab) {
@@ -10,9 +11,11 @@ struct ContentView: View {
             TripsView().tabItem { Label("记录", systemImage: "list.bullet.rectangle") }.tag(2)
             SettingsView().tabItem { Label("设置", systemImage: "gearshape") }.tag(3)
         }
+        .id(theme)
         .tint(Theme.accent)
         .preferredColorScheme(.dark)
         .overlay(alignment: .top) { BadgeToast() }
+        .fullScreenCover(isPresented: $m.crashAlert) { CrashAlertView() }
     }
 }
 
@@ -84,6 +87,16 @@ struct SettingsView: View {
     @AppStorage("map.gcj") private var mapGcj = true
     @AppStorage("island.left") private var islandLeft = "speed"
     @AppStorage("island.right") private var islandRight = "soc"
+    @AppStorage("ride.autoStart") private var autoStart = true
+    @AppStorage("ride.autoStop") private var autoStop = true
+    @AppStorage("speed.alert") private var speedAlert = true
+    @AppStorage("speed.limit") private var speedLimit = 30.0
+    @AppStorage("crash.on") private var crashOn = false
+    @AppStorage("crash.phone") private var crashPhone = ""
+    @AppStorage("goal.week") private var goalWeek = 30.0
+    @AppStorage("cost.fuel") private var fuel = 7.5
+    @AppStorage("cost.l100") private var l100 = 6.0
+    @AppStorage("cost.taxi") private var taxi = 2.5
 
     var body: some View {
         NavigationStack {
@@ -96,6 +109,23 @@ struct SettingsView: View {
                     Toggle("充满时提醒", isOn: $notifyCharge)
                     Toggle("电量低于 20% 和 10% 时提醒", isOn: $notifyLow)
                     Toggle("电池温度到 50 °C 时提醒", isOn: $notifyTemp)
+                }
+                Section(header: Text("骑行"), footer: Text("自动开始：连着电池时，电机持续出力 6 秒就自动开始记录（手动结束后 3 分钟内不会再自动开始）。app 在后台时自动开始，可能拿不到定位，车速和里程会缺。自动结束：车速和电流都停了 5 分钟。")) {
+                    Toggle("骑起来自动开始记录", isOn: $autoStart)
+                    Toggle("停车 5 分钟自动结束", isOn: $autoStop)
+                    Toggle("超速语音提醒", isOn: $speedAlert)
+                    if speedAlert { Stepper("超过 \(Int(speedLimit)) km/h 提醒", value: $speedLimit, in: 15...60, step: 1) }
+                    Stepper("每周目标 \(Int(goalWeek)) 公里", value: $goalWeek, in: 5...500, step: 5)
+                }
+                Section(header: Text("摔车检测"), footer: Text("骑行中手机感到剧烈撞击时，全屏提醒并倒计时 30 秒；没点\"我没事\"会语音提示和弹通知。app 不会自动打电话，要你自己点屏幕上的按钮。电话只存在这台手机里。手机掉地上也可能触发。")) {
+                    Toggle("打开摔车检测", isOn: $crashOn)
+                    if crashOn { TextField("紧急联系人电话（可不填）", text: $crashPhone).keyboardType(.phonePad) }
+                }
+                Section(header: Text("仪表主题"), footer: Text("在徽章页升级解锁更多颜色。")) { ThemePicker() }
+                Section(header: Text("省钱账本怎么算")) {
+                    Stepper(String(format: "油价 %.2f 元/升", fuel), value: $fuel, in: 4...12, step: 0.1)
+                    Stepper(String(format: "开车百公里 %.1f 升", l100), value: $l100, in: 3...15, step: 0.5)
+                    Stepper(String(format: "打车每公里 %.1f 元", taxi), value: $taxi, in: 1...6, step: 0.1)
                 }
                 Section(header: Text("导航和语音"), footer: Text("在仪表盘右上角点\"导航\"。优先用苹果地图的骑行路线，没有时用步行路线。语音会和音乐、高德的声音一起放，说话时把它们调小。")) {
                     Toggle("语音播报转弯", isOn: $nav.voiceOn)

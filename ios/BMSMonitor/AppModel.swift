@@ -13,6 +13,25 @@ final class AppModel: ObservableObject {
     let badges = BadgeStore()
     let stats = BatteryStats()
     let snaps = SnapStore()
+    let parking = ParkingStore()
+    let perf = PerfTester()
+    let maint = MaintStore()
+    let favs = FavStore()
+    let engine = EngineSound()
+    private let alt = AltTracker()
+    private let crash = CrashDetector()
+    @Published var crashAlert = false
+    @Published var engineOn = false {
+        didSet { if engineOn && ride.on { engine.start() } else { engine.stop() } }
+    }
+    private var autoMoveSince: Date?
+    private var stillSince: Date?
+    private var manualStopAt = Date.distantPast
+    private var overCount = 0
+    private var lastOverAt = Date.distantPast
+    private var lastEtaAt = Date.distantPast
+    private var etaScheduled: Date?
+    private var lastIdleAt = Date.distantPast
     @Published var checkInMsg = ""
     @Published var checkingIn = false
     @Published var voiceKm: Bool = UserDefaults.standard.object(forKey: "voice.km") as? Bool ?? true {
@@ -54,8 +73,20 @@ final class AppModel: ObservableObject {
             if self?.ride.on == true { Speaker.shared.say(text) }     // 骑车时把提醒也念出来
         }
         ride.onLocation = { [weak self] loc in
-            self?.nav.update(loc, gcj: UserDefaults.standard.object(forKey: "map.gcj") as? Bool ?? true)
+            guard let self else { return }
+            self.nav.update(loc, gcj: UserDefaults.standard.object(forKey: "map.gcj") as? Bool ?? true)
+            if let msg = self.perf.feed(loc, power: self.power, current: self.current, soc: self.lowest?.soc) {
+                self.say(msg)
+                if self.perf.phase == .done { self.evaluateBadges() }
+            }
         }
+        crash.onImpact = { [weak self] in
+            guard let self, self.ride.on, Pref.crashOn else { return }
+            LogStore.shared.log("摔车检测：检测到剧烈撞击")
+            self.crashAlert = true
+            self.say("检测到剧烈撞击，你没事吧？没事的话点我没事。")
+        }
+        maint.checkDue(odo: maint.odo(trips.trips))
         let nc = NotificationCenter.default
         nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
             LogStore.shared.log("App 切到后台")
@@ -90,7 +121,57 @@ final class AppModel: ObservableObject {
             health.feed(blocks: bs, summarySoc: summary?.soc)
             if health.records.count != n { evaluateBadges() }
             stats.feed(blocks: bs)
+            autoStartCheck()
+            chargeEta()
+            idleReminder()
+            if engine.running { engine.update(speed: ride.freshSpeed ?? 0, power: power ?? 0) }
         }
+    }
+
+    func say(_ s: String) { Speaker.shared.say(s) }
+
+    // MARK: 自动开始骑行：电池在持续放电（电机在转）6 秒以上
+    private func autoStartCheck() {
+        guard !ride.on, Pref.autoStart, !isCharging, Date().timeIntervalSince(manualStopAt) > 180 else { autoMoveSince = nil; return }
+        if (power ?? 0) > 250 {
+            if autoMoveSince == nil { autoMoveSince = Date() }
+            else if Date().timeIntervalSince(autoMoveSince!) >= 6 {
+                autoMoveSince = nil
+                LogStore.shared.log("检测到电机在转，自动开始骑行" + (UIApplication.shared.applicationState == .background ? "（app 在后台）" : ""))
+                startRide()
+                say("检测到在骑车，已自动开始记录")
+            }
+        } else { autoMoveSince = nil }
+    }
+
+    // MARK: 充好时间预告：按现在的电流算出几点充满，提前 15 分钟提醒
+    private func chargeEta() {
+        let now = Date()
+        guard now.timeIntervalSince(lastEtaAt) > 60 else { return }
+        lastEtaAt = now
+        if isCharging, let h = chargeHours, h > 0.3 {
+            let eta = now.addingTimeInterval(h * 3600)
+            if etaScheduled.map({ abs($0.timeIntervalSince(eta)) > 600 }) ?? true {
+                etaScheduled = eta
+                Notifier.shared.schedule("charge.eta", "大约 15 分钟后充满", "预计 " + eta.formatted(date: .omitted, time: .shortened) + " 充满。磷酸铁锂充满后保护板会自己停，不用急着拔。", at: eta.addingTimeInterval(-900))
+                LogStore.shared.log("预计 " + eta.formatted(date: .omitted, time: .shortened) + " 充满")
+            }
+        } else if etaScheduled != nil, !isCharging {
+            etaScheduled = nil
+            Notifier.shared.cancel("charge.eta")
+        }
+    }
+    var chargeEtaText: String? {
+        guard isCharging, let h = chargeHours else { return nil }
+        return Date().addingTimeInterval(h * 3600).formatted(date: .omitted, time: .shortened)
+    }
+
+    // MARK: 久放提醒：14 天没收到电池数据就提醒一次（每次收到数据都往后推）
+    private func idleReminder() {
+        guard Date().timeIntervalSince(lastIdleAt) > 600 else { return }
+        lastIdleAt = Date()
+        let soc = Int(lowest?.soc ?? 0)
+        Notifier.shared.schedule("idle", "车已经两周没动了", "上次看到电量 \(soc)%。磷酸铁锂长期放着最好保持在 50%～60%，每个月至少充一次。", at: Date().addingTimeInterval(14 * 86400))
     }
 
     // MARK: 给界面用的数
@@ -145,6 +226,10 @@ final class AppModel: ObservableObject {
 
     private func startRide() {
         ride.start()
+        alt.start()
+        if Pref.crashOn { crash.start() }
+        if engineOn { engine.start() }
+        stillSince = nil; overCount = 0
         tripWh = 0; tripMaxW = 0; tripSamples = []; tickCount = 0
         tripSocStart = lowest?.soc ?? 0
         lastKmSpoken = 0
@@ -156,9 +241,15 @@ final class AppModel: ObservableObject {
         tab = 1
     }
 
-    private func stopRide() {
+    private func stopRide(auto: Bool = false) {
         tick?.invalidate(); tick = nil
         rideTick()
+        if !auto { manualStopAt = Date() }
+        let endAt = auto ? (stillSince ?? Date()) : Date()
+        parking.save(ride.lastLocation, soc: lowest?.soc)
+        alt.stop(); crash.stop(); engine.stop()
+        let climb = alt.gain, descent = alt.loss
+        let names = liveBlocks.map(\.name)
         let start = ride.startedAt ?? Date()
         let dist = ride.distM, moving = ride.movingS, vmax = ride.vMaxKmh, track = ride.track
         nav.stop()
@@ -166,11 +257,20 @@ final class AppModel: ObservableObject {
         ride.stop()
         UIApplication.shared.isIdleTimerDisabled = false
         if dist >= 100 {
-            trips.add(Trip(start: start, end: Date(), distM: dist, movingS: moving, maxKmh: vmax,
+            let km = dist / 1000
+            let samples = tripSamples.filter { $0.t <= endAt.timeIntervalSince(start) + 2 }
+            let score = scoreTrip(samples: samples, km: km, whPerKm: km >= 0.5 && tripWh > 1 ? tripWh / km : nil)
+            trips.add(Trip(start: start, end: endAt, distM: dist, movingS: moving, maxKmh: vmax,
                            energyWh: tripWh, maxPowerW: tripMaxW,
-                           socStart: tripSocStart, socEnd: lowest?.soc ?? tripSocStart, samples: tripSamples,
-                           track: track.count >= 2 ? track : nil))
-            LogStore.shared.log(String(format: "这一趟用电 %.0f Wh，最大功率 %.0f W", tripWh, tripMaxW))
+                           socStart: tripSocStart, socEnd: lowest?.soc ?? tripSocStart, samples: samples,
+                           track: track.count >= 2 ? track : nil,
+                           climbM: alt.available ? climb : nil, descentM: alt.available ? descent : nil,
+                           score: score, blockNames: names.isEmpty ? nil : names))
+            LogStore.shared.log(String(format: "这一趟用电 %.0f Wh，最大功率 %.0f W，爬升 %.0f m，评分 %d", tripWh, tripMaxW, climb, score?.total ?? -1))
+            if let c = ChallengeStore.shared.check(trips.trips) {
+                Notifier.shared.postNow("今日挑战完成", c.title + "，+\(ChallengeStore.pointsEach) 分")
+            }
+            maint.checkDue(odo: maint.odo(trips.trips))
             evaluateBadges()
         }
         if autoUpload && Keychain.load() != nil { upload() }   // 骑完自动传一次
@@ -187,9 +287,34 @@ final class AppModel: ObservableObject {
         }
         tickCount += 1
         if tickCount % 2 == 0, let start = ride.startedAt {
+            let bs = liveBlocks
             tripSamples.append(TripSample(t: now.timeIntervalSince(start), v: ride.freshSpeed ?? 0,
-                                          p: power ?? 0, soc: lowest?.soc ?? 0))
+                                          p: power ?? 0, soc: lowest?.soc ?? 0,
+                                          a: alt.current,
+                                          bv: bs.count >= 2 ? bs.map { $0.cells.reduce(0, +) / Double(max($0.cells.count, 1)) } : nil))
         }
+        // 超速提醒：连续 3 秒超过设定车速，30 秒内只说一次
+        if Pref.speedAlertOn, let v = ride.freshSpeed, v > Pref.speedLimit {
+            overCount += 1
+            if overCount >= 3 && now.timeIntervalSince(lastOverAt) > 30 {
+                lastOverAt = now
+                say("超速了，现在 \(Int(v)) 公里")
+            }
+        } else { overCount = 0 }
+        // 自动结束：车速和电流都停了 5 分钟
+        if Pref.autoStop {
+            let fresh = lastDataAt.map { now.timeIntervalSince($0) < 15 } ?? false
+            let moving = (ride.freshSpeed ?? 0) > 3 || (fresh && abs(power ?? 0) > 150)
+            if moving { stillSince = nil }
+            else if stillSince == nil { stillSince = now }
+            else if now.timeIntervalSince(stillSince!) >= 300 && perf.phase == .idle {
+                LogStore.shared.log("停了 5 分钟，自动结束骑行")
+                say("停了 5 分钟，已自动结束骑行")
+                stopRide(auto: true)
+                return
+            }
+        }
+        if engine.running { engine.update(speed: ride.freshSpeed ?? 0, power: power ?? 0) }
         live.update(liveState())
         // 每骑 1 公里报一次
         let k = Int(ride.distM / 1000)
@@ -239,7 +364,8 @@ final class AppModel: ObservableObject {
 
     // MARK: 徽章
     func badgeCtx() -> BadgeCtx {
-        BadgeCtx(trips: trips.trips, charges: charges.sessions, health: health.records, navArrivals: badges.navCount, cycles: stats.cycles)
+        BadgeCtx(trips: trips.trips, charges: charges.sessions, health: health.records, navArrivals: badges.navCount, cycles: stats.cycles,
+                 accelBest: perf.best30, challenges: ChallengeStore.shared.done.count)
     }
     func evaluateBadges() { badges.evaluate(badgeCtx()) }
 

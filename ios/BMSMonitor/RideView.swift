@@ -6,6 +6,8 @@ struct RideView: View {
     @EnvironmentObject var ride: RideTracker
     @EnvironmentObject var nav: NavManager
     @State private var showSearch = false
+    @State private var showBar = false
+    @State private var showPerf = false
 
     var body: some View {
         ZStack {
@@ -13,6 +15,7 @@ struct RideView: View {
             TimelineView(.periodic(from: .now, by: 1)) { _ in
                 VStack(spacing: 16) {
                     top
+                    tools
                     if nav.active {
                         NavBanner()
                         ZStack(alignment: .bottomLeading) {
@@ -31,7 +34,13 @@ struct RideView: View {
                     } else {
                         Speedometer(speed: ride.freshSpeed, maxSpeed: 50)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 300)
+                            .frame(height: 270)
+                            .overlay(alignment: .bottom) {
+                                if Pref.speedAlertOn, (ride.freshSpeed ?? 0) > Pref.speedLimit {
+                                    Text("超速").font(.caption.weight(.bold)).padding(.horizontal, 10).padding(.vertical, 4)
+                                        .background(Capsule().fill(Theme.bad))
+                                }
+                            }
                     }
                     power
                     tripGrid
@@ -46,6 +55,8 @@ struct RideView: View {
         }
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showSearch) { NavSearchView() }
+        .sheet(isPresented: $showPerf) { PerfTestView() }
+        .fullScreenCover(isPresented: $showBar) { HandlebarView() }
     }
 
     private var top: some View {
@@ -73,6 +84,24 @@ struct RideView: View {
                 Text((ride.startedAt.map { Date().timeIntervalSince($0) } ?? 0).hms)
                     .font(.system(.title3, design: .rounded).weight(.semibold)).monospacedDigit()
             }
+        }
+    }
+
+    private var tools: some View {
+        HStack(spacing: 8) {
+            pill("车把模式", "iphone.gen3", false) { showBar = true }
+            pill("加速测试", "stopwatch", false) { showPerf = true }
+            pill(m.engineOn ? "声浪 开" : "声浪", "speaker.wave.2.fill", m.engineOn) { m.engineOn.toggle() }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func pill(_ t: String, _ icon: String, _ on: Bool, _ act: @escaping () -> Void) -> some View {
+        Button(action: act) {
+            Label(t, systemImage: icon).font(.caption.weight(.semibold))
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(Capsule().fill(on ? Theme.accent : Color.white.opacity(0.1)))
+                .foregroundStyle(.white)
         }
     }
 

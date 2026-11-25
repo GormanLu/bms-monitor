@@ -6,7 +6,7 @@ enum Theme {
     static let bgBottom = Color(red: 0.02, green: 0.03, blue: 0.06)
     static let card = Color.white.opacity(0.06)
     static let stroke = Color.white.opacity(0.09)
-    static let accent = Color(red: 0.33, green: 0.57, blue: 1.0)
+    static var accent: Color { ThemeKind.current.accent }
     static let good = Color(red: 0.36, green: 0.87, blue: 0.55)
     static let warn = Color(red: 1.0, green: 0.75, blue: 0.30)
     static let bad = Color(red: 1.0, green: 0.40, blue: 0.38)

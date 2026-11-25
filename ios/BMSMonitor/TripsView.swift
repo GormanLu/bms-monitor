@@ -79,6 +79,14 @@ struct TripDetailView: View {
                             }
                         }
                     }
+                    if let s = trip.score ?? scoreTrip(samples: trip.samples, km: trip.km, whPerKm: trip.whPerKm) { ScoreCard(s: s) }
+                    let same = sameRoute(trip, in: trips.trips)
+                    if !same.isEmpty { SameRouteCard(trip: trip, others: same) }
+                    NavigationLink { PosterView(trip: trip) } label: {
+                        Label("生成骑行海报", systemImage: "photo.artframe")
+                            .font(.headline).frame(maxWidth: .infinity).padding(.vertical, 12)
+                            .background(Capsule().stroke(Color.white.opacity(0.4))).foregroundStyle(.white)
+                    }
                     if let tr = trip.track, tr.count >= 2 {
                         NavigationLink { ReplayView(trip: trip) } label: {
                             Label("回放这一趟", systemImage: "play.circle.fill")
@@ -91,6 +99,7 @@ struct TripDetailView: View {
                         chart(title: "功率", unit: "W", color: Theme.warn) { $0.p }
                         chart(title: "电量（最低的一块）", unit: "%", color: Theme.good) { $0.soc }
                     }
+                    TripExtraCharts(trip: trip)
                     Button(role: .destructive) { trips.delete(trip); dismiss() } label: {
                         Label("删除这一趟", systemImage: "trash").frame(maxWidth: .infinity)
                     }

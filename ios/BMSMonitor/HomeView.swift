@@ -18,11 +18,25 @@ struct HomeView: View {
                             connection
                             hero
                             checkIn
+                            GoalCard()
                             if m.liveBlocks.count >= 2 { pack }
                             life
+                            NavigationLink { BatteryReportView() } label: {
+                                HStack {
+                                    Image(systemName: "doc.richtext.fill").foregroundStyle(Theme.accent)
+                                    Text("电池体检报告（PDF）").font(.subheadline.weight(.semibold))
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.faint)
+                                }
+                                .padding(16)
+                                .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
+                            }
+                            .buttonStyle(.plain)
+                            MaintCard()
                             if m.isCharging { charging }
                             live
                             rideShortcut
+                            ParkCard()
                             upload
                         }
                         .padding(.horizontal, 16)
@@ -170,6 +184,9 @@ struct HomeView: View {
                 StatTile(label: "充电功率", value: m.power.map { String(format: "%.0f", abs($0)) } ?? "--", unit: "W", color: Theme.good)
                 StatTile(label: "电流", value: m.current.map { String(format: "%.1f", $0) } ?? "--", unit: "A")
                 StatTile(label: "充满还要", value: m.chargeHours.map { h in h >= 1 ? String(format: "%.0f:%02.0f", floor(h), (h - floor(h)) * 60) : String(format: "%.0f分", h * 60) } ?? "--")
+            }
+            if let eta = m.chargeEtaText {
+                Text("按现在的电流，预计 \(eta) 充满，提前 15 分钟会提醒你").font(.caption).foregroundStyle(Theme.sub)
             }
             let stopped = m.liveBlocks.filter { abs($0.current) < 0.2 }
             if !stopped.isEmpty && stopped.count < m.liveBlocks.count {

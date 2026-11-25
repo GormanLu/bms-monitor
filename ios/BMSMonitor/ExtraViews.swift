@@ -43,7 +43,7 @@ struct TripsView: View {
             Section {
                 HStack(spacing: 10) {
                     // 一行里放好几个跳转时，列表会把整行当成一个按钮、点哪个都可能触发几个，所以用独立按钮各自控制
-                    Button { showReport = true } label: { shortcut("月度报告", "chart.bar.doc.horizontal.fill", Theme.accent) }
+                    Button { showReport = true } label: { shortcut("月报 · 年报", "chart.bar.doc.horizontal.fill", Theme.accent) }
                     Button { showBadges = true } label: { shortcut("Lv.\(badges.level.index) 徽章", "medal.fill", Theme.warn) }
                     Button { showHeat = true } label: { shortcut("路线热力图", "flame.fill", Theme.bad) }
                 }
@@ -52,6 +52,7 @@ struct TripsView: View {
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
             Section { totals }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+            Section { SavingsCard() }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
             Section { records }.listRowBackground(Color.clear).listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
             Section(header: Text("每一趟").foregroundStyle(Theme.sub)) {
                 if trips.trips.isEmpty {
@@ -306,7 +307,8 @@ struct BadgeRow: View {
 struct ReportView: View {
     @EnvironmentObject var trips: TripStore
     @EnvironmentObject var charges: ChargeStore
-    @State private var offset = 0          // 0 = 本月，-1 = 上个月
+    @State private var offset = 0          // 0 = 本月（今年），-1 = 上个月（去年）
+    @State private var yearMode = false
     @State private var image: Image?
 
     var body: some View {
@@ -314,6 +316,8 @@ struct ReportView: View {
             AppBackground()
             ScrollView {
                 VStack(spacing: 14) {
+                    Picker("", selection: $yearMode) { Text("月报").tag(false); Text("年报").tag(true) }
+                        .pickerStyle(.segmented)
                     HStack {
                         Button { offset -= 1 } label: { Image(systemName: "chevron.left") }
                         Spacer()
@@ -322,7 +326,7 @@ struct ReportView: View {
                         Button { offset = min(0, offset + 1) } label: { Image(systemName: "chevron.right") }.disabled(offset >= 0)
                     }
                     .padding(.horizontal, 6)
-                    ReportCard(s: stats(offset), prev: stats(offset - 1), title: monthTitle(offset))
+                    ReportCard(s: stats(offset), prev: stats(offset - 1), title: monthTitle(offset), prevName: yearMode ? "去年" : "上月")
                     if let image {
                         ShareLink(item: image, preview: SharePreview(monthTitle(offset) + "骑行报告", image: image)) {
                             Label("分享这张卡片", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
@@ -333,13 +337,14 @@ struct ReportView: View {
                 .padding(16)
             }
         }
-        .navigationTitle("月度报告")
+        .navigationTitle(yearMode ? "年度报告" : "月度报告")
         .onAppear(perform: render)
         .onChange(of: offset) { _ in render() }
+        .onChange(of: yearMode) { _ in offset = 0; render() }
     }
 
     @MainActor private func render() {
-        let r = ImageRenderer(content: ReportCard(s: stats(offset), prev: stats(offset - 1), title: monthTitle(offset))
+        let r = ImageRenderer(content: ReportCard(s: stats(offset), prev: stats(offset - 1), title: monthTitle(offset), prevName: yearMode ? "去年" : "上月")
             .frame(width: 360).padding(16).background(Color(red: 0.05, green: 0.06, blue: 0.1)).environment(\.colorScheme, .dark))
         r.scale = 3
         image = r.uiImage.map { Image(uiImage: $0) }
@@ -347,12 +352,12 @@ struct ReportView: View {
 
     private func monthStart(_ off: Int) -> Date {
         let c = Calendar.current
-        let start = c.date(from: c.dateComponents([.year, .month], from: Date()))!
-        return c.date(byAdding: .month, value: off, to: start)!
+        let start = c.date(from: c.dateComponents(yearMode ? [.year] : [.year, .month], from: Date()))!
+        return c.date(byAdding: yearMode ? .year : .month, value: off, to: start)!
     }
-    private func monthTitle(_ off: Int) -> String { monthStart(off).formatted(.dateTime.year().month(.wide)) }
+    private func monthTitle(_ off: Int) -> String { yearMode ? monthStart(off).formatted(.dateTime.year()) : monthStart(off).formatted(.dateTime.year().month(.wide)) }
 
-    struct Stats { var n = 0, km = 0.0, hours = 0.0, wh = 0.0, cost = 0.0, maxKmh = 0.0, longest = 0.0, charges = 0, chargeWh = 0.0
+    struct Stats { var n = 0, km = 0.0, hours = 0.0, wh = 0.0, cost = 0.0, maxKmh = 0.0, longest = 0.0, charges = 0, chargeWh = 0.0, days = 0, climb = 0.0, save = Savings()
         var whPerKm: Double? { km >= 1 ? wh / km : nil } }
 
     private func stats(_ off: Int) -> Stats {
@@ -369,6 +374,9 @@ struct ReportView: View {
         s.longest = ts.map(\.km).max() ?? 0
         s.charges = cs.count
         s.chargeWh = cs.reduce(0) { $0 + $1.wh }
+        s.days = Set(ts.map { Calendar.current.startOfDay(for: $0.start) }).count
+        s.climb = ts.reduce(0) { $0 + ($1.climbM ?? 0) }
+        s.save = savings(ts, price: trips.price)
         return s
     }
 }
@@ -377,6 +385,7 @@ struct ReportCard: View {
     let s: ReportView.Stats
     let prev: ReportView.Stats
     let title: String
+    var prevName = "上月"
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -389,7 +398,7 @@ struct ReportCard: View {
                 Spacer()
                 if prev.km > 0 {
                     let d = (s.km - prev.km) / prev.km * 100
-                    Text(String(format: "%@%.0f%%", d >= 0 ? "比上月多 " : "比上月少 ", abs(d)))
+                    Text(String(format: "%@%.0f%%", d >= 0 ? "比\(prevName)多 " : "比\(prevName)少 ", abs(d)))
                         .font(.caption.weight(.semibold)).foregroundStyle(d >= 0 ? Theme.good : Theme.warn)
                 }
             }
@@ -408,6 +417,11 @@ struct ReportCard: View {
                     StatTile(label: "最远一趟", value: String(format: "%.1f", s.longest), unit: "km")
                     StatTile(label: "充电", value: "\(s.charges)", unit: "次")
                     StatTile(label: "百公里电费", value: s.km >= 1 ? String(format: "%.1f", s.cost / s.km * 100) : "--", unit: "元")
+                }
+                GridRow {
+                    StatTile(label: "骑车的日子", value: "\(s.days)", unit: "天")
+                    StatTile(label: "比开车省", value: String(format: "%.0f", max(0, s.save.fuel - s.save.elec)), unit: "元", color: Theme.good)
+                    StatTile(label: "减碳", value: String(format: "%.1f", s.save.co2), unit: "kg", color: Theme.good)
                 }
             }
         }
