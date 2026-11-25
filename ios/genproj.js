@@ -3,7 +3,7 @@
 // 用法：node genproj.js <ios 目录>
 const fs = require('fs'), path = require('path');
 const out = process.argv[2] || __dirname;
-const TEAM = 'ZU27Q3S7UC', BUILD = 9, BUNDLE = 'com.gormanlu.bmsmonitor';
+const TEAM = 'ZU27Q3S7UC', BUILD = 10, BUNDLE = 'com.gormanlu.bmsmonitor';
 
 const appSrcs = ['BMSMonitorApp.swift', 'AppModel.swift', 'BLEManager.swift', 'FrameParser.swift', 'LogStore.swift', 'Uploader.swift',
   'RideTracker.swift', 'TripStore.swift', 'Notifier.swift', 'LiveActivityManager.swift', 'Components.swift', 'HomeView.swift',
@@ -62,7 +62,7 @@ const cfgList = (l, d, r) => `		${l} = {
 const common = `ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;`;
 const appCfg = `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;

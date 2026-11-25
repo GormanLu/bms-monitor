@@ -92,6 +92,7 @@ struct SettingsView: View {
     @AppStorage("speed.alert") private var speedAlert = true
     @AppStorage("speed.limit") private var speedLimit = 30.0
     @AppStorage("crash.on") private var crashOn = false
+    @AppStorage("watch.tap") private var watchTap = true
     @AppStorage("crash.phone") private var crashPhone = ""
     @AppStorage("goal.week") private var goalWeek = 30.0
     @AppStorage("cost.fuel") private var fuel = 7.5
@@ -120,6 +121,9 @@ struct SettingsView: View {
                 Section(header: Text("摔车检测"), footer: Text("骑行中手机感到剧烈撞击时，全屏提醒并倒计时 30 秒；没点\"我没事\"会语音提示和弹通知。app 不会自动打电话，要你自己点屏幕上的按钮。电话只存在这台手机里。手机掉地上也可能触发。")) {
                     Toggle("打开摔车检测", isOn: $crashOn)
                     if crashOn { TextField("紧急联系人电话（可不填）", text: $crashPhone).keyboardType(.phonePad) }
+                }
+                Section(header: Text("Apple Watch"), footer: Text("骑行时，手表的智能叠放里会显示车速、电量、续航和导航（转一下表冠或在表盘上往上滑）。想抬手就看到：在手表的 设置 → 智能叠放 里打开实时活动的\"自动启动\"。转弯和超速提醒是发一条通知，手机锁屏时会转到手表上震一下手腕。")) {
+                    Toggle("转弯和超速时震手表", isOn: $watchTap)
                 }
                 Section(header: Text("仪表主题"), footer: Text("在徽章页升级解锁更多颜色。")) { ThemePicker() }
                 Section(header: Text("省钱账本怎么算")) {

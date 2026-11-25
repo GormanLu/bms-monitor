@@ -23,7 +23,8 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     // app 在前台时也弹出来
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound])
+        // "tap." 开头的是给手表震动用的：app 在前台时手机屏幕上已经看得到，就不弹了
+        completionHandler(notification.request.identifier.hasPrefix("tap.") ? [] : [.banner, .sound])
     }
 
     var onAlert: ((String) -> Void)?
@@ -37,6 +38,19 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func postNow(_ title: String, _ body: String) { post(title, body) }
+
+    /// 给手表的轻提醒（导航转弯、超速）：手机锁屏时系统会把它转到手表上震一下；同一个 id 会替换上一条，1 分钟后自动清掉
+    func tap(_ id: String, _ title: String, _ body: String) {
+        guard UserDefaults.standard.object(forKey: "watch.tap") as? Bool ?? true else { return }
+        let c = UNMutableNotificationContent()
+        c.title = title
+        c.body = body
+        c.sound = .default
+        c.interruptionLevel = .active
+        let center = UNUserNotificationCenter.current()
+        center.add(UNNotificationRequest(identifier: id, content: c, trigger: nil))
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { center.removeDeliveredNotifications(withIdentifiers: [id]) }
+    }
 
     /// 定时提醒（同一个 id 会覆盖上一次的）
     func schedule(_ id: String, _ title: String, _ body: String, at date: Date) {

@@ -166,8 +166,10 @@ final class NavManager: NSObject, ObservableObject {
             let key = nextText
             if nextDist <= 300 && nextDist > 120 && !spoken.contains(key + "300") {
                 spoken.insert(key + "300"); say("前方\(dist(nextDist))，\(nextText)")
+                Notifier.shared.tap("tap.nav", "前方\(dist(nextDist))", nextText)
             } else if nextDist <= 50 && !spoken.contains(key + "50") {
                 spoken.insert(key + "50"); spoken.insert(key + "300"); say(nextText)
+                Notifier.shared.tap("tap.nav", nextText, "就在前面")
             }
         }
     }

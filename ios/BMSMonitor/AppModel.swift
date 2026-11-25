@@ -324,6 +324,7 @@ final class AppModel: ObservableObject {
             if overCount >= 3 && now.timeIntervalSince(lastOverAt) > 30 {
                 lastOverAt = now
                 say("超速了，现在 \(Int(v)) 公里")
+                Notifier.shared.tap("tap.speed", "超速了", "现在 \(Int(v)) km/h，超过设定的 \(Int(Pref.speedLimit))")
             }
         } else { overCount = 0 }
         // 自动结束：车速和电流都停了 5 分钟

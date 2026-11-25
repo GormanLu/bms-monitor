@@ -80,7 +80,7 @@ private struct BlockBars: View {
 struct RideLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RideAttributes.self) { ctx in
-            LockScreenView(s: ctx.state, startedAt: ctx.attributes.startedAt)
+            ActivityContent(s: ctx.state, startedAt: ctx.attributes.startedAt)
                 .activityBackgroundTint(Color.black.opacity(0.85))
                 .activitySystemActionForegroundColor(.white)
         } dynamicIsland: { ctx in
@@ -146,6 +146,7 @@ struct RideLiveActivity: Widget {
                 Text("\(Int(s.soc))").font(.system(.caption, design: .rounded).weight(.bold)).foregroundStyle(socColor(s.soc))
             }
         }
+        .supplementalActivityFamilies([.small])
     }
 }
 
@@ -208,5 +209,50 @@ struct LockScreenView: View {
             if !s.blockSocs.isEmpty { BlockBars(s: s) }
         }
         .padding(14)
+    }
+}
+
+
+// 锁屏用大版面，手表的"智能叠放"（和 CarPlay）用小版面
+struct ActivityContent: View {
+    @Environment(\.activityFamily) private var family
+    let s: RideAttributes.ContentState
+    let startedAt: Date
+    var body: some View {
+        if family == .small { WatchActivityView(s: s) } else { LockScreenView(s: s, startedAt: startedAt) }
+    }
+}
+
+struct WatchActivityView: View {
+    let s: RideAttributes.ContentState
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if s.navDist >= 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: navIcon(for: s.navText)).font(.system(size: 14, weight: .bold))
+                    Text(s.navDist >= 1000 ? String(format: "%.1fkm", Double(s.navDist) / 1000) : "\(s.navDist)m")
+                        .font(.system(size: 14, weight: .bold, design: .rounded)).monospacedDigit()
+                    Text(s.navText).font(.system(size: 11)).lineLimit(1)
+                }
+                .foregroundStyle(blue)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(s.speedText).font(.system(size: s.navDist >= 0 ? 30 : 36, weight: .heavy, design: .rounded)).monospacedDigit()
+                Text("km/h").font(.system(size: 10)).foregroundStyle(sub)
+                Spacer(minLength: 0)
+                VStack(alignment: .trailing, spacing: 0) {
+                    Text("\(Int(s.soc))%").font(.system(size: 18, weight: .bold, design: .rounded)).foregroundStyle(socColor(s.soc))
+                    Text("\(s.rangeText) km").font(.system(size: 10)).foregroundStyle(sub)
+                }
+            }
+            HStack(spacing: 6) {
+                Text("\(abs(s.power)) W").foregroundStyle(powerColor(s.power))
+                Text(String(format: "%.1f km", s.distKm))
+                Text(s.tempText)
+            }
+            .font(.system(size: 11, weight: .semibold, design: .rounded)).monospacedDigit().foregroundStyle(.white.opacity(0.85))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 4)
     }
 }
