@@ -89,6 +89,10 @@ final class AppModel: ObservableObject {
             self.say("检测到剧烈撞击，你没事吧？没事的话点我没事。")
         }
         maint.checkDue(odo: maint.odo(trips.trips))
+        PhoneLink.shared.onCommand = { [weak self] c in
+            if c == "toggleRide" { LogStore.shared.log("手表上点了" + (self?.ride.on == true ? "结束骑行" : "开始骑行")); self?.toggleRide() }
+        }
+        PhoneLink.shared.start()
         let nc = NotificationCenter.default
         nc.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
             LogStore.shared.log("App 切到后台")
@@ -127,6 +131,7 @@ final class AppModel: ObservableObject {
             chargeEta()
             idleReminder()
             pushWidget()
+            if !ride.on { PhoneLink.shared.send(watchState(), live: false) }
             if engine.running { engine.update(speed: ride.freshSpeed ?? 0, power: power ?? 0) }
         }
     }
@@ -336,6 +341,7 @@ final class AppModel: ObservableObject {
         }
         if engine.running { engine.update(speed: ride.freshSpeed ?? 0, power: power ?? 0) }
         live.update(liveState())
+        PhoneLink.shared.send(watchState(), live: true)
         // 每骑 1 公里报一次
         let k = Int(ride.distM / 1000)
         if k > lastKmSpoken {
@@ -378,6 +384,35 @@ final class AppModel: ObservableObject {
             s.navLeftM = Int(nav.remainingM.rounded())
         }
         return s
+    }
+
+    func watchState() -> WatchState {
+        let bs = liveBlocks
+        var w = WatchState()
+        w.speed = ride.freshSpeed.map { Int($0.rounded()) } ?? -1
+        w.soc = lowest?.soc ?? 0
+        w.range = rangeKm.map { Int($0) } ?? -1
+        w.power = Int((power ?? 0).rounded())
+        w.current = current ?? 0
+        w.rideOn = ride.on
+        w.distKm = ride.distM / 1000
+        w.elapsed = ride.startedAt.map { Date().timeIntervalSince($0) } ?? 0
+        w.avg = ride.movingS > 10 ? Int((ride.distM / ride.movingS * 3.6).rounded()) : -1
+        w.maxKmh = Int(ride.vMaxKmh.rounded())
+        w.tripWh = Int(tripWh.rounded())
+        w.whKm = tripWhPerKm.map { Int($0.rounded()) } ?? -1
+        w.temp = tempRange?.1 ?? -99
+        w.gap = packGapMv ?? 0
+        w.names = bs.map(\.name)
+        w.socs = bs.map { Int($0.soc) }
+        w.lowIndex = lowest.flatMap { lo in bs.firstIndex { $0.id == lo.id } } ?? -1
+        w.charging = isCharging
+        w.eta = chargeEtaText
+        w.connected = ble.connected
+        if nav.active { w.navText = nav.nextText; w.navDist = Int(nav.nextDist.rounded()); w.navLeft = Int(nav.remainingM.rounded()) }
+        w.limit = Pref.speedAlertOn ? Int(Pref.speedLimit) : -1
+        w.climb = Int(alt.gain.rounded())
+        return w
     }
 
     var tripWhPerKm: Double? { ride.distM >= 500 && tripWh > 1 ? tripWh / (ride.distM / 1000) : nil }

@@ -1,5 +1,5 @@
 // 生成 BMSMonitor.xcodeproj/project.pbxproj（Mac 上没有 xcodegen，工程文件用这个脚本生成）
-// 两个目标：BMSMonitor（app）和 BMSWidgetExtension（锁屏和灵动岛的实时活动）
+// 三个目标：BMSMonitor（app）、BMSWidgetExtension（锁屏和灵动岛的实时活动、主屏幕小组件）、BMSWatch（Apple Watch app，嵌在 app 里）
 // 用法：node genproj.js <ios 目录>
 const fs = require('fs'), path = require('path');
 const out = process.argv[2] || __dirname;
@@ -7,24 +7,57 @@ const TEAM = 'ZU27Q3S7UC', BUILD = 9, BUNDLE = 'com.gormanlu.bmsmonitor';
 
 const appSrcs = ['BMSMonitorApp.swift', 'AppModel.swift', 'BLEManager.swift', 'FrameParser.swift', 'LogStore.swift', 'Uploader.swift',
   'RideTracker.swift', 'TripStore.swift', 'Notifier.swift', 'LiveActivityManager.swift', 'Components.swift', 'HomeView.swift',
-  'RideView.swift', 'TripsView.swift', 'TrackViews.swift', 'NavManager.swift', 'NavViews.swift', 'Speaker.swift', 'Extras.swift', 'Badges.swift', 'BatteryStats.swift', 'ExtraViews.swift', 'ContentView.swift', 'Features2.swift', 'Features3.swift', 'Views3.swift'];
-const sharedSrcs = ['RideAttributes.swift', 'WidgetShare.swift'];
+  'RideView.swift', 'TripsView.swift', 'TrackViews.swift', 'NavManager.swift', 'NavViews.swift', 'Speaker.swift', 'Extras.swift', 'Badges.swift',
+  'BatteryStats.swift', 'ExtraViews.swift', 'ContentView.swift', 'Features2.swift', 'Features3.swift', 'Views3.swift', 'PhoneLink.swift'];
+const sharedSrcs = ['RideAttributes.swift', 'WidgetShare.swift'];   // app + 小组件
+const watchShared = ['WatchState.swift'];                            // app + 手表
 const widgetSrcs = ['BMSWidget.swift', 'HomeWidget.swift'];
+const watchSrcs = ['BMSWatchApp.swift'];
 
 let n = 0; const id = () => ('AB' + String(++n).padStart(22, '0'));
-const ref = {}, bfApp = {}, bfWid = {};
-for (const s of [...appSrcs, ...sharedSrcs, ...widgetSrcs]) ref[s] = id();
-for (const s of [...appSrcs, ...sharedSrcs]) bfApp[s] = id();
+const ref = {}, bfApp = {}, bfWid = {}, bfWat = {};
+for (const s of [...appSrcs, ...sharedSrcs, ...watchShared, ...widgetSrcs, ...watchSrcs]) ref[s] = id();
+for (const s of [...appSrcs, ...sharedSrcs, ...watchShared]) bfApp[s] = id();
 for (const s of [...widgetSrcs, ...sharedSrcs]) bfWid[s] = id();
-const assetsRef = id(), assetsBuild = id(), appPlist = id(), widPlist = id(), appRef = id(), appexRef = id(), appexBuild = id();
-const appSources = id(), appFrameworks = id(), appResources = id(), embedPhase = id();
+for (const s of [...watchSrcs, ...watchShared]) bfWat[s] = id();
+const appSrcAll = [...appSrcs, ...sharedSrcs, ...watchShared], widSrcAll = [...widgetSrcs, ...sharedSrcs], watSrcAll = [...watchSrcs, ...watchShared];
+
+const assetsRef = id(), assetsBuild = id(), appPlist = id(), widPlist = id(), appEnt = id(), widEnt = id();
+const appRef = id(), appexRef = id(), appexBuild = id(), watchRef = id(), watchBuild = id(), wAssetsRef = id(), wAssetsBuild = id();
+const appSources = id(), appFrameworks = id(), appResources = id(), embedPhase = id(), watchEmbed = id();
 const widSources = id(), widFrameworks = id(), widResources = id();
-const gRoot = id(), gApp = id(), gShared = id(), gWid = id(), gProducts = id();
-const tApp = id(), tWid = id(), project = id(), proxy = id(), dep = id();
-const cfgPD = id(), cfgPR = id(), cfgAD = id(), cfgAR = id(), cfgWD = id(), cfgWR = id(), listP = id(), listA = id(), listW = id();
+const watSources = id(), watFrameworks = id(), watResources = id();
+const gRoot = id(), gApp = id(), gShared = id(), gWid = id(), gWat = id(), gProducts = id();
+const tApp = id(), tWid = id(), tWat = id(), project = id(), proxy = id(), dep = id(), proxyW = id(), depW = id();
+const cfgPD = id(), cfgPR = id(), cfgAD = id(), cfgAR = id(), cfgWD = id(), cfgWR = id(), cfgXD = id(), cfgXR = id();
+const listP = id(), listA = id(), listW = id(), listX = id();
 
 const list = (items, indent) => items.map(x => indent + x + ',').join('\n');
-const fileRefLine = (s, dir) => `		${ref[s]} /* ${s} */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ${s}; sourceTree = "<group>"; };`;
+const fileRefLine = s => `		${ref[s]} /* ${s} */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ${s}; sourceTree = "<group>"; };`;
+const buildLines = (srcs, bf) => srcs.map(s => `		${bf[s]} /* ${s} in Sources */ = {isa = PBXBuildFile; fileRef = ${ref[s]} /* ${s} */; };`).join('\n');
+const emptyPhase = (pid, isa, name) => `		${pid} /* ${name} */ = {
+			isa = ${isa};
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};`;
+const cfgPair = (d, r, body) => [d, r].map((c, i) => `		${c} /* ${i ? 'Release' : 'Debug'} */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				${body}
+			};
+			name = ${i ? 'Release' : 'Debug'};
+		};`).join('\n');
+const cfgList = (l, d, r) => `		${l} = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				${d} /* Debug */,
+				${r} /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};`;
 
 const common = `ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_MODULES = YES;
@@ -33,12 +66,12 @@ const common = `ALWAYS_SEARCH_USER_PATHS = NO;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 5.0;`;
 const appCfg = `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BMSMonitor/BMSMonitor.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = ${BUILD};
 				DEVELOPMENT_TEAM = ${TEAM};
 				ENABLE_PREVIEWS = NO;
 				GENERATE_INFOPLIST_FILE = NO;
-				CODE_SIGN_ENTITLEMENTS = BMSMonitor/BMSMonitor.entitlements;
 				INFOPLIST_FILE = BMSMonitor/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -50,11 +83,11 @@ const appCfg = `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;`;
 const widCfg = `APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = BMSWidget/BMSWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = ${BUILD};
 				DEVELOPMENT_TEAM = ${TEAM};
 				GENERATE_INFOPLIST_FILE = NO;
-				CODE_SIGN_ENTITLEMENTS = BMSWidget/BMSWidget.entitlements;
 				INFOPLIST_FILE = BMSWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -67,6 +100,28 @@ const widCfg = `APPLICATION_EXTENSION_API_ONLY = YES;
 				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;`;
+const watCfg = `ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = ${BUILD};
+				DEVELOPMENT_TEAM = ${TEAM};
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "电池监控";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = ${BUNDLE};
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ${BUNDLE}.watchkitapp;
+				PRODUCT_NAME = BMSWatch;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 4;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;`;
 
 const t = `// !$*UTF8*$!
 {
@@ -77,10 +132,13 @@ const t = `// !$*UTF8*$!
 	objects = {
 
 /* Begin PBXBuildFile section */
-${[...appSrcs, ...sharedSrcs].map(s => `		${bfApp[s]} /* ${s} in Sources */ = {isa = PBXBuildFile; fileRef = ${ref[s]} /* ${s} */; };`).join('\n')}
-${[...widgetSrcs, ...sharedSrcs].map(s => `		${bfWid[s]} /* ${s} in Sources */ = {isa = PBXBuildFile; fileRef = ${ref[s]} /* ${s} */; };`).join('\n')}
+${buildLines(appSrcAll, bfApp)}
+${buildLines(widSrcAll, bfWid)}
+${buildLines(watSrcAll, bfWat)}
 		${assetsBuild} /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ${assetsRef} /* Assets.xcassets */; };
+		${wAssetsBuild} /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = ${wAssetsRef} /* Assets.xcassets */; };
 		${appexBuild} /* BMSWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = ${appexRef} /* BMSWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		${watchBuild} /* BMSWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = ${watchRef} /* BMSWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +148,13 @@ ${[...widgetSrcs, ...sharedSrcs].map(s => `		${bfWid[s]} /* ${s} in Sources */ =
 			proxyType = 1;
 			remoteGlobalIDString = ${tWid};
 			remoteInfo = BMSWidgetExtension;
+		};
+		${proxyW} /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ${project} /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = ${tWat};
+			remoteInfo = BMSWatch;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -105,34 +170,36 @@ ${[...widgetSrcs, ...sharedSrcs].map(s => `		${bfWid[s]} /* ${s} in Sources */ =
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		${watchEmbed} /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				${watchBuild} /* BMSWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-${appSrcs.map(s => fileRefLine(s)).join('\n')}
-${sharedSrcs.map(s => fileRefLine(s)).join('\n')}
-${widgetSrcs.map(s => fileRefLine(s)).join('\n')}
+${[...appSrcs, ...sharedSrcs, ...watchShared, ...widgetSrcs, ...watchSrcs].map(fileRefLine).join('\n')}
 		${assetsRef} /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		${wAssetsRef} /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		${appPlist} /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		${widPlist} /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		${appEnt} /* BMSMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BMSMonitor.entitlements; sourceTree = "<group>"; };
+		${widEnt} /* BMSWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BMSWidget.entitlements; sourceTree = "<group>"; };
 		${appRef} /* BMSMonitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BMSMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		${appexRef} /* BMSWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BMSWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		${watchRef} /* BMSWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BMSWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		${appFrameworks} /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		${widFrameworks} /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
+${emptyPhase(appFrameworks, 'PBXFrameworksBuildPhase', 'Frameworks')}
+${emptyPhase(widFrameworks, 'PBXFrameworksBuildPhase', 'Frameworks')}
+${emptyPhase(watFrameworks, 'PBXFrameworksBuildPhase', 'Frameworks')}
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -142,6 +209,7 @@ ${widgetSrcs.map(s => fileRefLine(s)).join('\n')}
 				${gApp} /* BMSMonitor */,
 				${gShared} /* Shared */,
 				${gWid} /* BMSWidget */,
+				${gWat} /* BMSWatch */,
 				${gProducts} /* Products */,
 			);
 			sourceTree = "<group>";
@@ -152,6 +220,7 @@ ${widgetSrcs.map(s => fileRefLine(s)).join('\n')}
 ${list(appSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 				${assetsRef} /* Assets.xcassets */,
 				${appPlist} /* Info.plist */,
+				${appEnt} /* BMSMonitor.entitlements */,
 			);
 			path = BMSMonitor;
 			sourceTree = "<group>";
@@ -159,7 +228,7 @@ ${list(appSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 		${gShared} /* Shared */ = {
 			isa = PBXGroup;
 			children = (
-${list(sharedSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
+${list([...sharedSrcs, ...watchShared].map(s => `${ref[s]} /* ${s} */`), '				')}
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -169,8 +238,18 @@ ${list(sharedSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 			children = (
 ${list(widgetSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 				${widPlist} /* Info.plist */,
+				${widEnt} /* BMSWidget.entitlements */,
 			);
 			path = BMSWidget;
+			sourceTree = "<group>";
+		};
+		${gWat} /* BMSWatch */ = {
+			isa = PBXGroup;
+			children = (
+${list(watchSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
+				${wAssetsRef} /* Assets.xcassets */,
+			);
+			path = BMSWatch;
 			sourceTree = "<group>";
 		};
 		${gProducts} /* Products */ = {
@@ -178,6 +257,7 @@ ${list(widgetSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 			children = (
 				${appRef} /* BMSMonitor.app */,
 				${appexRef} /* BMSWidgetExtension.appex */,
+				${watchRef} /* BMSWatch.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -193,11 +273,13 @@ ${list(widgetSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 				${appFrameworks} /* Frameworks */,
 				${appResources} /* Resources */,
 				${embedPhase} /* Embed Foundation Extensions */,
+				${watchEmbed} /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				${dep} /* PBXTargetDependency */,
+				${depW} /* PBXTargetDependency */,
 			);
 			name = BMSMonitor;
 			productName = BMSMonitor;
@@ -221,6 +303,23 @@ ${list(widgetSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 			productReference = ${appexRef} /* BMSWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
+		${tWat} /* BMSWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = ${listX};
+			buildPhases = (
+				${watSources} /* Sources */,
+				${watFrameworks} /* Frameworks */,
+				${watResources} /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = BMSWatch;
+			productName = BMSWatch;
+			productReference = ${watchRef} /* BMSWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -235,6 +334,9 @@ ${list(widgetSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 						CreatedOnToolsVersion = 15.0;
 					};
 					${tWid} = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					${tWat} = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
@@ -255,6 +357,7 @@ ${list(widgetSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 			targets = (
 				${tApp} /* BMSMonitor */,
 				${tWid} /* BMSWidgetExtension */,
+				${tWat} /* BMSWatch */,
 			);
 		};
 /* End PBXProject section */
@@ -268,10 +371,12 @@ ${list(widgetSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		${widResources} /* Resources */ = {
+${emptyPhase(widResources, 'PBXResourcesBuildPhase', 'Resources')}
+		${watResources} /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				${wAssetsBuild} /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -282,7 +387,7 @@ ${list(widgetSrcs.map(s => `${ref[s]} /* ${s} */`), '				')}
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-${list([...appSrcs, ...sharedSrcs].map(s => `${bfApp[s]} /* ${s} in Sources */`), '				')}
+${list(appSrcAll.map(s => `${bfApp[s]} /* ${s} in Sources */`), '				')}
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -290,7 +395,15 @@ ${list([...appSrcs, ...sharedSrcs].map(s => `${bfApp[s]} /* ${s} in Sources */`)
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-${list([...widgetSrcs, ...sharedSrcs].map(s => `${bfWid[s]} /* ${s} in Sources */`), '				')}
+${list(widSrcAll.map(s => `${bfWid[s]} /* ${s} in Sources */`), '				')}
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		${watSources} /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+${list(watSrcAll.map(s => `${bfWat[s]} /* ${s} in Sources */`), '				')}
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -301,6 +414,11 @@ ${list([...widgetSrcs, ...sharedSrcs].map(s => `${bfWid[s]} /* ${s} in Sources *
 			isa = PBXTargetDependency;
 			target = ${tWid} /* BMSWidgetExtension */;
 			targetProxy = ${proxy} /* PBXContainerItemProxy */;
+		};
+		${depW} /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = ${tWat} /* BMSWatch */;
+			targetProxy = ${proxyW} /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -329,64 +447,16 @@ ${list([...widgetSrcs, ...sharedSrcs].map(s => `${bfWid[s]} /* ${s} in Sources *
 			};
 			name = Release;
 		};
-		${cfgAD} /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				${appCfg}
-			};
-			name = Debug;
-		};
-		${cfgAR} /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				${appCfg}
-			};
-			name = Release;
-		};
-		${cfgWD} /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				${widCfg}
-			};
-			name = Debug;
-		};
-		${cfgWR} /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				${widCfg}
-			};
-			name = Release;
-		};
+${cfgPair(cfgAD, cfgAR, appCfg)}
+${cfgPair(cfgWD, cfgWR, widCfg)}
+${cfgPair(cfgXD, cfgXR, watCfg)}
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		${listP} = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				${cfgPD} /* Debug */,
-				${cfgPR} /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		${listA} = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				${cfgAD} /* Debug */,
-				${cfgAR} /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		${listW} = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				${cfgWD} /* Debug */,
-				${cfgWR} /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
+${cfgList(listP, cfgPD, cfgPR)}
+${cfgList(listA, cfgAD, cfgAR)}
+${cfgList(listW, cfgWD, cfgWR)}
+${cfgList(listX, cfgXD, cfgXR)}
 /* End XCConfigurationList section */
 	};
 	rootObject = ${project} /* Project object */;
