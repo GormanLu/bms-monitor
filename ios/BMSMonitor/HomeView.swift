@@ -120,6 +120,8 @@ struct HomeView: View {
                             .font(.caption).foregroundStyle(Theme.sub)
                     }
                     StatTile(label: "估算续航", value: m.rangeKm.map { String(format: "%.0f", $0) } ?? "--", unit: "km", icon: "road.lanes")
+                    let gs = gapStyle(m.packGapMv, loaded: m.gapLoaded)
+                    StatTile(label: "整组压差 · " + gs.note, value: m.packGapMv.map { "\($0)" } ?? "--", unit: "mV", icon: "arrow.up.and.down", color: gs.color)
                     StatTile(label: "剩余", value: m.lowest.map { String(format: "%.1f", $0.remainAh) } ?? "--", unit: "Ah", icon: "bolt.batteryblock")
                     if let s = m.summary {
                         Text(String(format: "保护板汇总 %.1f%% · 每公里 %.0f Wh", s.soc, m.whPerKm)).font(.caption2).foregroundStyle(Theme.faint)
@@ -141,7 +143,7 @@ struct HomeView: View {
         return GlassCard(title: "五块电池", icon: "square.stack.3d.up.fill") {
             HStack(alignment: .top, spacing: 8) {
                 ForEach(blocks, id: \.id) { b in
-                    BatteryCell(block: b, isLowest: b.id == lowId && blocks.count > 1, showCharge: m.isCharging)
+                    BatteryCell(block: b, isLowest: b.id == lowId && blocks.count > 1, showCharge: m.isCharging, balancing: m.balancing(b.id))
                 }
             }
             Text("每块下面依次是电量、块内压差、温度。橙色边框是电量最低的一块。")
@@ -214,8 +216,8 @@ struct HomeView: View {
             if !stopped.isEmpty && stopped.count < m.liveBlocks.count {
                 Text("模块 " + stopped.map(\.name).joined(separator: "、") + " 已经不进电，其余的还在充").font(.caption).foregroundStyle(Theme.sub)
             }
-            if m.liveBlocks.contains(where: { $0.balance != 0 }) {
-                Label("正在均衡：" + m.liveBlocks.filter { $0.balance != 0 }.map(\.name).joined(separator: "、"), systemImage: "waveform.path")
+            if m.liveBlocks.contains(where: { m.balancing($0.id) }) {
+                Label("正在均衡：" + m.liveBlocks.filter { m.balancing($0.id) }.map(\.name).joined(separator: "、"), systemImage: "waveform.path")
                     .font(.caption).foregroundStyle(Theme.accent)
             }
         }

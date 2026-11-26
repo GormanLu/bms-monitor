@@ -15,6 +15,15 @@ enum Theme {
     static func soc(_ s: Double) -> Color { s <= 15 ? bad : s <= 30 ? warn : good }
 }
 
+/// 整组压差怎么看：停着时（电流很小）30 mV 以内正常；骑车带载时各块压降不一样，会被拉大，150 mV 以内都正常
+func gapStyle(_ g: Int?, loaded: Bool) -> (color: Color, note: String) {
+    guard let g else { return (.white, "等数据") }
+    if loaded {
+        return g >= 300 ? (Theme.bad, "带载偏大") : g >= 150 ? (Theme.warn, "带载略大") : (.white, "带载，正常")
+    }
+    return g >= 60 ? (Theme.bad, "静置偏大") : g >= 30 ? (Theme.warn, "静置略大") : (Theme.good, "静置，很齐")
+}
+
 struct AppBackground: View {
     var body: some View {
         LinearGradient(colors: [Theme.bgTop, Theme.bgBottom], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
@@ -167,6 +176,7 @@ struct BatteryCell: View {
     let block: BlockData
     var isLowest = false
     var showCharge = false
+    var balancing = false
     var body: some View {
         VStack(spacing: 6) {
             ZStack(alignment: .bottom) {
@@ -199,7 +209,7 @@ struct BatteryCell: View {
             if showCharge {
                 Text(abs(block.current) < 0.2 ? "0A" : String(format: "%.1fA", block.current))
                     .font(.system(size: 10)).monospacedDigit().foregroundStyle(block.current > 0.5 ? Theme.good : Theme.faint)
-                if block.balance != 0 {
+                if balancing {
                     Image(systemName: "waveform.path").font(.system(size: 10)).foregroundStyle(Theme.accent)
                 }
             }

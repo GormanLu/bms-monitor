@@ -27,6 +27,8 @@ final class AppModel: ObservableObject {
     private var stillSince: Date?
     private var lastMovingAt = Date()
     private var stopping = false
+    /// 各块最近一次报"正在均衡"的时间：均衡是单双数节轮流的，中间常夹着一帧 0，所以 12 秒内出现过就算在均衡
+    private var balanceAt: [UInt8: Date] = [:]
     private let analyzer = RideAnalyzer()
     private var manualStopAt = Date.distantPast
     private var overCount = 0
@@ -112,6 +114,7 @@ final class AppModel: ObservableObject {
             switch fr {
             case .block(let b):
                 blocks[b.id] = b
+                if b.balance != 0 { balanceAt[b.id] = now }
                 if ride.on {
                     analyzer.feed(i: b.current, v: totalV, cells: cells, temps: liveBlocks.flatMap(\.temps), speed: ride.freshSpeed)
                 }
@@ -228,6 +231,10 @@ final class AppModel: ObservableObject {
         guard let lo = t.min(), let hi = t.max() else { return nil }
         return (lo, hi)
     }
+    func balancing(_ id: UInt8) -> Bool { balanceAt[id].map { Date().timeIntervalSince($0) < 12 } ?? false }
+    /// 现在是不是带着负载（骑车或充电），这时压差会被拉大
+    var gapLoaded: Bool { abs(current ?? 0) >= 3 }
+
     var packGapMv: Int? {
         guard let hi = cells.max(), let lo = cells.min() else { return nil }
         return Int(((hi - lo) * 1000).rounded())

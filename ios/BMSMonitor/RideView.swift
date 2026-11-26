@@ -13,7 +13,9 @@ struct RideView: View {
         ZStack {
             Color.black.ignoresSafeArea()
             TimelineView(.periodic(from: .now, by: 1)) { _ in
-                VStack(spacing: 16) {
+              // 内容比屏幕高时可以上下滑，不会被裁掉
+              ScrollView(showsIndicators: false) {
+                VStack(spacing: 14) {
                     top
                     tools
                     if nav.active {
@@ -46,11 +48,11 @@ struct RideView: View {
                     tripGrid
                     if ride.track.count >= 2 { route }
                     blocksStrip
-                    Spacer(minLength: 0)
                     button
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
+              }
             }
         }
         .preferredColorScheme(.dark)
@@ -70,9 +72,14 @@ struct RideView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("电量 · 按最低的一块").font(.caption2).foregroundStyle(Theme.sub)
                 Text(m.rangeKm.map { String(format: "还能跑约 %.0f km", $0) } ?? "续航估算中").font(.subheadline.weight(.semibold))
-                if let t = m.tempRange {
-                    Text("电池温度 \(t.0)~\(t.1) °C").font(.caption2).foregroundStyle(t.1 >= 50 ? Theme.bad : t.1 >= 45 ? Theme.warn : Theme.sub)
+                HStack(spacing: 6) {
+                    let gs = gapStyle(m.packGapMv, loaded: m.gapLoaded)
+                    Text("压差 " + (m.packGapMv.map { "\($0)" } ?? "--") + " mV").foregroundStyle(gs.color)
+                    if let t = m.tempRange {
+                        Text("电池 \(t.0)~\(t.1)°C").foregroundStyle(t.1 >= 50 ? Theme.bad : t.1 >= 45 ? Theme.warn : Theme.sub)
+                    }
                 }
+                .font(.caption.weight(.semibold)).monospacedDigit()
             }
             Spacer()
             Button { if nav.active { nav.stop() } else { showSearch = true } } label: {
@@ -133,17 +140,11 @@ struct RideView: View {
             GridRow {
                 StatTile(label: "用电", value: String(format: "%.0f", m.tripWh), unit: "Wh")
                 StatTile(label: "每公里", value: m.tripWhPerKm.map { String(format: "%.0f", $0) } ?? "--", unit: "Wh")
-                StatTile(label: "压差", value: m.packGapMv.map { "\($0)" } ?? "--", unit: "mV", color: gapColor(m.packGapMv))
+                StatTile(label: "整组压差", value: m.packGapMv.map { "\($0)" } ?? "--", unit: "mV", color: gapStyle(m.packGapMv, loaded: m.gapLoaded).color)
             }
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(0.06)))
-    }
-
-    // 骑行时电流一直在变，压差会比停着时大，所以这里放宽：300 mV 以上才标红
-    private func gapColor(_ g: Int?) -> Color {
-        guard let g else { return .white }
-        return g >= 300 ? Theme.bad : g >= 150 ? Theme.warn : .white
     }
 
     // 这一趟的路线（不带地图，只画形状）
