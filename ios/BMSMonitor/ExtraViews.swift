@@ -126,6 +126,16 @@ struct ChargeListView: View {
                             StatTile(label: "电量", value: String(format: "%.0f→%.0f", c.socStart, c.socEnd), unit: "%")
                             StatTile(label: "电费", value: String(format: "%.2f", c.wh / 1000 / 0.85 * trips.price), unit: "元")
                         }
+                        if let a = c.avgA {
+                            let ba = c.blockA ?? [:]
+                            let spread = (ba.values.max() ?? a) - (ba.values.min() ?? a)
+                            Text(String(format: "平均 %.1f A，约 %.0f W", a, c.duration > 0 ? c.wh / (c.duration / 3600) : 0)
+                                 + (ba.count >= 2 ? String(format: "；五块电流相差 %.1f A%@", spread, spread <= 0.5 ? "，一致" : "，偏大") : ""))
+                                .font(.caption).foregroundStyle(Theme.sub)
+                            if a > 7.2 {
+                                Text("超过 7 A：按你之前的经验，这个充电桩在快充满时可能跳闸，末段五块拉平的那一段就没了。").font(.caption2).foregroundStyle(Theme.warn)
+                            }
+                        }
                         if !c.stops.isEmpty {
                             Text("各块停的先后：" + c.stops.joined(separator: " → ")).font(.caption).foregroundStyle(Theme.sub)
                         }

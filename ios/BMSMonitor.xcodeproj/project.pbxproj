@@ -7,85 +7,86 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		AB0000000000000000000035 /* BMSMonitorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* BMSMonitorApp.swift */; };
-		AB0000000000000000000036 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000002 /* AppModel.swift */; };
-		AB0000000000000000000037 /* BLEManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000003 /* BLEManager.swift */; };
-		AB0000000000000000000038 /* FrameParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000004 /* FrameParser.swift */; };
-		AB0000000000000000000039 /* LogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000005 /* LogStore.swift */; };
-		AB0000000000000000000040 /* Uploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000006 /* Uploader.swift */; };
-		AB0000000000000000000041 /* RideTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000007 /* RideTracker.swift */; };
-		AB0000000000000000000042 /* TripStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000008 /* TripStore.swift */; };
-		AB0000000000000000000043 /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000009 /* Notifier.swift */; };
-		AB0000000000000000000044 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000010 /* LiveActivityManager.swift */; };
-		AB0000000000000000000045 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000011 /* Components.swift */; };
-		AB0000000000000000000046 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000012 /* HomeView.swift */; };
-		AB0000000000000000000047 /* RideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000013 /* RideView.swift */; };
-		AB0000000000000000000048 /* TripsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000014 /* TripsView.swift */; };
-		AB0000000000000000000049 /* TrackViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000015 /* TrackViews.swift */; };
-		AB0000000000000000000050 /* NavManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000016 /* NavManager.swift */; };
-		AB0000000000000000000051 /* NavViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000017 /* NavViews.swift */; };
-		AB0000000000000000000052 /* Speaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000018 /* Speaker.swift */; };
-		AB0000000000000000000053 /* Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000019 /* Extras.swift */; };
-		AB0000000000000000000054 /* Badges.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000020 /* Badges.swift */; };
-		AB0000000000000000000055 /* BatteryStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000021 /* BatteryStats.swift */; };
-		AB0000000000000000000056 /* ExtraViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000022 /* ExtraViews.swift */; };
-		AB0000000000000000000057 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000023 /* ContentView.swift */; };
-		AB0000000000000000000058 /* Features2.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000024 /* Features2.swift */; };
-		AB0000000000000000000059 /* Features3.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000025 /* Features3.swift */; };
-		AB0000000000000000000060 /* Views3.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000026 /* Views3.swift */; };
-		AB0000000000000000000061 /* PhoneLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000027 /* PhoneLink.swift */; };
-		AB0000000000000000000062 /* FeatureHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000028 /* FeatureHub.swift */; };
-		AB0000000000000000000063 /* RideAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000029 /* RideAttributes.swift */; };
-		AB0000000000000000000064 /* WidgetShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000030 /* WidgetShare.swift */; };
-		AB0000000000000000000065 /* WatchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000031 /* WatchState.swift */; };
-		AB0000000000000000000066 /* BMSWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000032 /* BMSWidget.swift */; };
-		AB0000000000000000000067 /* HomeWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000033 /* HomeWidget.swift */; };
-		AB0000000000000000000068 /* RideAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000029 /* RideAttributes.swift */; };
-		AB0000000000000000000069 /* WidgetShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000030 /* WidgetShare.swift */; };
-		AB0000000000000000000070 /* BMSWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000034 /* BMSWatchApp.swift */; };
-		AB0000000000000000000071 /* WatchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000031 /* WatchState.swift */; };
-		AB0000000000000000000073 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000072 /* Assets.xcassets */; };
-		AB0000000000000000000084 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000083 /* Assets.xcassets */; };
-		AB0000000000000000000080 /* BMSWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000079 /* BMSWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		AB0000000000000000000082 /* BMSWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000081 /* BMSWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AB0000000000000000000036 /* BMSMonitorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* BMSMonitorApp.swift */; };
+		AB0000000000000000000037 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000002 /* AppModel.swift */; };
+		AB0000000000000000000038 /* BLEManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000003 /* BLEManager.swift */; };
+		AB0000000000000000000039 /* FrameParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000004 /* FrameParser.swift */; };
+		AB0000000000000000000040 /* LogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000005 /* LogStore.swift */; };
+		AB0000000000000000000041 /* Uploader.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000006 /* Uploader.swift */; };
+		AB0000000000000000000042 /* RideTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000007 /* RideTracker.swift */; };
+		AB0000000000000000000043 /* TripStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000008 /* TripStore.swift */; };
+		AB0000000000000000000044 /* Notifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000009 /* Notifier.swift */; };
+		AB0000000000000000000045 /* LiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000010 /* LiveActivityManager.swift */; };
+		AB0000000000000000000046 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000011 /* Components.swift */; };
+		AB0000000000000000000047 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000012 /* HomeView.swift */; };
+		AB0000000000000000000048 /* RideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000013 /* RideView.swift */; };
+		AB0000000000000000000049 /* TripsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000014 /* TripsView.swift */; };
+		AB0000000000000000000050 /* TrackViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000015 /* TrackViews.swift */; };
+		AB0000000000000000000051 /* NavManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000016 /* NavManager.swift */; };
+		AB0000000000000000000052 /* NavViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000017 /* NavViews.swift */; };
+		AB0000000000000000000053 /* Speaker.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000018 /* Speaker.swift */; };
+		AB0000000000000000000054 /* Extras.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000019 /* Extras.swift */; };
+		AB0000000000000000000055 /* Badges.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000020 /* Badges.swift */; };
+		AB0000000000000000000056 /* BatteryStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000021 /* BatteryStats.swift */; };
+		AB0000000000000000000057 /* ExtraViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000022 /* ExtraViews.swift */; };
+		AB0000000000000000000058 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000023 /* ContentView.swift */; };
+		AB0000000000000000000059 /* Features2.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000024 /* Features2.swift */; };
+		AB0000000000000000000060 /* Features3.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000025 /* Features3.swift */; };
+		AB0000000000000000000061 /* Views3.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000026 /* Views3.swift */; };
+		AB0000000000000000000062 /* PhoneLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000027 /* PhoneLink.swift */; };
+		AB0000000000000000000063 /* FeatureHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000028 /* FeatureHub.swift */; };
+		AB0000000000000000000064 /* RideAnalysis.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000029 /* RideAnalysis.swift */; };
+		AB0000000000000000000065 /* RideAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000030 /* RideAttributes.swift */; };
+		AB0000000000000000000066 /* WidgetShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000031 /* WidgetShare.swift */; };
+		AB0000000000000000000067 /* WatchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000032 /* WatchState.swift */; };
+		AB0000000000000000000068 /* BMSWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000033 /* BMSWidget.swift */; };
+		AB0000000000000000000069 /* HomeWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000034 /* HomeWidget.swift */; };
+		AB0000000000000000000070 /* RideAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000030 /* RideAttributes.swift */; };
+		AB0000000000000000000071 /* WidgetShare.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000031 /* WidgetShare.swift */; };
+		AB0000000000000000000072 /* BMSWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000035 /* BMSWatchApp.swift */; };
+		AB0000000000000000000073 /* WatchState.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000032 /* WatchState.swift */; };
+		AB0000000000000000000075 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000074 /* Assets.xcassets */; };
+		AB0000000000000000000086 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000085 /* Assets.xcassets */; };
+		AB0000000000000000000082 /* BMSWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000081 /* BMSWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		AB0000000000000000000084 /* BMSWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000083 /* BMSWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		AB0000000000000000000106 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = AB0000000000000000000105 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = AB0000000000000000000103;
-			remoteInfo = BMSWidgetExtension;
-		};
 		AB0000000000000000000108 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
-			containerPortal = AB0000000000000000000105 /* Project object */;
+			containerPortal = AB0000000000000000000107 /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = AB0000000000000000000104;
+			remoteGlobalIDString = AB0000000000000000000105;
+			remoteInfo = BMSWidgetExtension;
+		};
+		AB0000000000000000000110 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AB0000000000000000000107 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AB0000000000000000000106;
 			remoteInfo = BMSWatch;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		AB0000000000000000000088 /* Embed Foundation Extensions */ = {
+		AB0000000000000000000090 /* Embed Foundation Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				AB0000000000000000000080 /* BMSWidgetExtension.appex in Embed Foundation Extensions */,
+				AB0000000000000000000082 /* BMSWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AB0000000000000000000089 /* Embed Watch Content */ = {
+		AB0000000000000000000091 /* Embed Watch Content */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
 			dstSubfolderSpec = 16;
 			files = (
-				AB0000000000000000000082 /* BMSWatch.app in Embed Watch Content */,
+				AB0000000000000000000084 /* BMSWatch.app in Embed Watch Content */,
 			);
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -121,39 +122,40 @@
 		AB0000000000000000000026 /* Views3.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views3.swift; sourceTree = "<group>"; };
 		AB0000000000000000000027 /* PhoneLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneLink.swift; sourceTree = "<group>"; };
 		AB0000000000000000000028 /* FeatureHub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureHub.swift; sourceTree = "<group>"; };
-		AB0000000000000000000029 /* RideAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideAttributes.swift; sourceTree = "<group>"; };
-		AB0000000000000000000030 /* WidgetShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetShare.swift; sourceTree = "<group>"; };
-		AB0000000000000000000031 /* WatchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchState.swift; sourceTree = "<group>"; };
-		AB0000000000000000000032 /* BMSWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BMSWidget.swift; sourceTree = "<group>"; };
-		AB0000000000000000000033 /* HomeWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWidget.swift; sourceTree = "<group>"; };
-		AB0000000000000000000034 /* BMSWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BMSWatchApp.swift; sourceTree = "<group>"; };
-		AB0000000000000000000072 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		AB0000000000000000000083 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		AB0000000000000000000074 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		AB0000000000000000000075 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		AB0000000000000000000076 /* BMSMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BMSMonitor.entitlements; sourceTree = "<group>"; };
-		AB0000000000000000000077 /* BMSWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BMSWidget.entitlements; sourceTree = "<group>"; };
-		AB0000000000000000000078 /* BMSMonitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BMSMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		AB0000000000000000000079 /* BMSWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BMSWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		AB0000000000000000000081 /* BMSWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BMSWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB0000000000000000000029 /* RideAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideAnalysis.swift; sourceTree = "<group>"; };
+		AB0000000000000000000030 /* RideAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RideAttributes.swift; sourceTree = "<group>"; };
+		AB0000000000000000000031 /* WidgetShare.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetShare.swift; sourceTree = "<group>"; };
+		AB0000000000000000000032 /* WatchState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchState.swift; sourceTree = "<group>"; };
+		AB0000000000000000000033 /* BMSWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BMSWidget.swift; sourceTree = "<group>"; };
+		AB0000000000000000000034 /* HomeWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWidget.swift; sourceTree = "<group>"; };
+		AB0000000000000000000035 /* BMSWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BMSWatchApp.swift; sourceTree = "<group>"; };
+		AB0000000000000000000074 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AB0000000000000000000085 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		AB0000000000000000000076 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AB0000000000000000000077 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		AB0000000000000000000078 /* BMSMonitor.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BMSMonitor.entitlements; sourceTree = "<group>"; };
+		AB0000000000000000000079 /* BMSWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BMSWidget.entitlements; sourceTree = "<group>"; };
+		AB0000000000000000000080 /* BMSMonitor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BMSMonitor.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB0000000000000000000081 /* BMSWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = BMSWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		AB0000000000000000000083 /* BMSWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BMSWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		AB0000000000000000000086 /* Frameworks */ = {
+		AB0000000000000000000088 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AB0000000000000000000091 /* Frameworks */ = {
+		AB0000000000000000000093 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AB0000000000000000000094 /* Frameworks */ = {
+		AB0000000000000000000096 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -163,18 +165,18 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		AB0000000000000000000096 = {
+		AB0000000000000000000098 = {
 			isa = PBXGroup;
 			children = (
-				AB0000000000000000000097 /* BMSMonitor */,
-				AB0000000000000000000098 /* Shared */,
-				AB0000000000000000000099 /* BMSWidget */,
-				AB0000000000000000000100 /* BMSWatch */,
-				AB0000000000000000000101 /* Products */,
+				AB0000000000000000000099 /* BMSMonitor */,
+				AB0000000000000000000100 /* Shared */,
+				AB0000000000000000000101 /* BMSWidget */,
+				AB0000000000000000000102 /* BMSWatch */,
+				AB0000000000000000000103 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		AB0000000000000000000097 /* BMSMonitor */ = {
+		AB0000000000000000000099 /* BMSMonitor */ = {
 			isa = PBXGroup;
 			children = (
 				AB0000000000000000000001 /* BMSMonitorApp.swift */,
@@ -205,49 +207,50 @@
 				AB0000000000000000000026 /* Views3.swift */,
 				AB0000000000000000000027 /* PhoneLink.swift */,
 				AB0000000000000000000028 /* FeatureHub.swift */,
-				AB0000000000000000000072 /* Assets.xcassets */,
-				AB0000000000000000000074 /* Info.plist */,
-				AB0000000000000000000076 /* BMSMonitor.entitlements */,
+				AB0000000000000000000029 /* RideAnalysis.swift */,
+				AB0000000000000000000074 /* Assets.xcassets */,
+				AB0000000000000000000076 /* Info.plist */,
+				AB0000000000000000000078 /* BMSMonitor.entitlements */,
 			);
 			path = BMSMonitor;
 			sourceTree = "<group>";
 		};
-		AB0000000000000000000098 /* Shared */ = {
+		AB0000000000000000000100 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
-				AB0000000000000000000029 /* RideAttributes.swift */,
-				AB0000000000000000000030 /* WidgetShare.swift */,
-				AB0000000000000000000031 /* WatchState.swift */,
+				AB0000000000000000000030 /* RideAttributes.swift */,
+				AB0000000000000000000031 /* WidgetShare.swift */,
+				AB0000000000000000000032 /* WatchState.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
 		};
-		AB0000000000000000000099 /* BMSWidget */ = {
+		AB0000000000000000000101 /* BMSWidget */ = {
 			isa = PBXGroup;
 			children = (
-				AB0000000000000000000032 /* BMSWidget.swift */,
-				AB0000000000000000000033 /* HomeWidget.swift */,
-				AB0000000000000000000075 /* Info.plist */,
-				AB0000000000000000000077 /* BMSWidget.entitlements */,
+				AB0000000000000000000033 /* BMSWidget.swift */,
+				AB0000000000000000000034 /* HomeWidget.swift */,
+				AB0000000000000000000077 /* Info.plist */,
+				AB0000000000000000000079 /* BMSWidget.entitlements */,
 			);
 			path = BMSWidget;
 			sourceTree = "<group>";
 		};
-		AB0000000000000000000100 /* BMSWatch */ = {
+		AB0000000000000000000102 /* BMSWatch */ = {
 			isa = PBXGroup;
 			children = (
-				AB0000000000000000000034 /* BMSWatchApp.swift */,
-				AB0000000000000000000083 /* Assets.xcassets */,
+				AB0000000000000000000035 /* BMSWatchApp.swift */,
+				AB0000000000000000000085 /* Assets.xcassets */,
 			);
 			path = BMSWatch;
 			sourceTree = "<group>";
 		};
-		AB0000000000000000000101 /* Products */ = {
+		AB0000000000000000000103 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				AB0000000000000000000078 /* BMSMonitor.app */,
-				AB0000000000000000000079 /* BMSWidgetExtension.appex */,
-				AB0000000000000000000081 /* BMSWatch.app */,
+				AB0000000000000000000080 /* BMSMonitor.app */,
+				AB0000000000000000000081 /* BMSWidgetExtension.appex */,
+				AB0000000000000000000083 /* BMSWatch.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -255,34 +258,34 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		AB0000000000000000000102 /* BMSMonitor */ = {
+		AB0000000000000000000104 /* BMSMonitor */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AB0000000000000000000119;
+			buildConfigurationList = AB0000000000000000000121;
 			buildPhases = (
-				AB0000000000000000000085 /* Sources */,
-				AB0000000000000000000086 /* Frameworks */,
-				AB0000000000000000000087 /* Resources */,
-				AB0000000000000000000088 /* Embed Foundation Extensions */,
-				AB0000000000000000000089 /* Embed Watch Content */,
+				AB0000000000000000000087 /* Sources */,
+				AB0000000000000000000088 /* Frameworks */,
+				AB0000000000000000000089 /* Resources */,
+				AB0000000000000000000090 /* Embed Foundation Extensions */,
+				AB0000000000000000000091 /* Embed Watch Content */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				AB0000000000000000000107 /* PBXTargetDependency */,
 				AB0000000000000000000109 /* PBXTargetDependency */,
+				AB0000000000000000000111 /* PBXTargetDependency */,
 			);
 			name = BMSMonitor;
 			productName = BMSMonitor;
-			productReference = AB0000000000000000000078 /* BMSMonitor.app */;
+			productReference = AB0000000000000000000080 /* BMSMonitor.app */;
 			productType = "com.apple.product-type.application";
 		};
-		AB0000000000000000000103 /* BMSWidgetExtension */ = {
+		AB0000000000000000000105 /* BMSWidgetExtension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AB0000000000000000000120;
+			buildConfigurationList = AB0000000000000000000122;
 			buildPhases = (
-				AB0000000000000000000090 /* Sources */,
-				AB0000000000000000000091 /* Frameworks */,
-				AB0000000000000000000092 /* Resources */,
+				AB0000000000000000000092 /* Sources */,
+				AB0000000000000000000093 /* Frameworks */,
+				AB0000000000000000000094 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -290,16 +293,16 @@
 			);
 			name = BMSWidgetExtension;
 			productName = BMSWidgetExtension;
-			productReference = AB0000000000000000000079 /* BMSWidgetExtension.appex */;
+			productReference = AB0000000000000000000081 /* BMSWidgetExtension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
-		AB0000000000000000000104 /* BMSWatch */ = {
+		AB0000000000000000000106 /* BMSWatch */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = AB0000000000000000000121;
+			buildConfigurationList = AB0000000000000000000123;
 			buildPhases = (
-				AB0000000000000000000093 /* Sources */,
-				AB0000000000000000000094 /* Frameworks */,
-				AB0000000000000000000095 /* Resources */,
+				AB0000000000000000000095 /* Sources */,
+				AB0000000000000000000096 /* Frameworks */,
+				AB0000000000000000000097 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -307,31 +310,31 @@
 			);
 			name = BMSWatch;
 			productName = BMSWatch;
-			productReference = AB0000000000000000000081 /* BMSWatch.app */;
+			productReference = AB0000000000000000000083 /* BMSWatch.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		AB0000000000000000000105 /* Project object */ = {
+		AB0000000000000000000107 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
-					AB0000000000000000000102 = {
-						CreatedOnToolsVersion = 15.0;
-					};
-					AB0000000000000000000103 = {
-						CreatedOnToolsVersion = 15.0;
-					};
 					AB0000000000000000000104 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					AB0000000000000000000105 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+					AB0000000000000000000106 = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
-			buildConfigurationList = AB0000000000000000000118;
+			buildConfigurationList = AB0000000000000000000120;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
@@ -340,120 +343,121 @@
 				en,
 				Base,
 			);
-			mainGroup = AB0000000000000000000096;
-			productRefGroup = AB0000000000000000000101 /* Products */;
+			mainGroup = AB0000000000000000000098;
+			productRefGroup = AB0000000000000000000103 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				AB0000000000000000000102 /* BMSMonitor */,
-				AB0000000000000000000103 /* BMSWidgetExtension */,
-				AB0000000000000000000104 /* BMSWatch */,
+				AB0000000000000000000104 /* BMSMonitor */,
+				AB0000000000000000000105 /* BMSWidgetExtension */,
+				AB0000000000000000000106 /* BMSWatch */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		AB0000000000000000000087 /* Resources */ = {
+		AB0000000000000000000089 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AB0000000000000000000073 /* Assets.xcassets in Resources */,
+				AB0000000000000000000075 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AB0000000000000000000092 /* Resources */ = {
+		AB0000000000000000000094 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AB0000000000000000000095 /* Resources */ = {
+		AB0000000000000000000097 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AB0000000000000000000084 /* Assets.xcassets in Resources */,
+				AB0000000000000000000086 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		AB0000000000000000000085 /* Sources */ = {
+		AB0000000000000000000087 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AB0000000000000000000035 /* BMSMonitorApp.swift in Sources */,
-				AB0000000000000000000036 /* AppModel.swift in Sources */,
-				AB0000000000000000000037 /* BLEManager.swift in Sources */,
-				AB0000000000000000000038 /* FrameParser.swift in Sources */,
-				AB0000000000000000000039 /* LogStore.swift in Sources */,
-				AB0000000000000000000040 /* Uploader.swift in Sources */,
-				AB0000000000000000000041 /* RideTracker.swift in Sources */,
-				AB0000000000000000000042 /* TripStore.swift in Sources */,
-				AB0000000000000000000043 /* Notifier.swift in Sources */,
-				AB0000000000000000000044 /* LiveActivityManager.swift in Sources */,
-				AB0000000000000000000045 /* Components.swift in Sources */,
-				AB0000000000000000000046 /* HomeView.swift in Sources */,
-				AB0000000000000000000047 /* RideView.swift in Sources */,
-				AB0000000000000000000048 /* TripsView.swift in Sources */,
-				AB0000000000000000000049 /* TrackViews.swift in Sources */,
-				AB0000000000000000000050 /* NavManager.swift in Sources */,
-				AB0000000000000000000051 /* NavViews.swift in Sources */,
-				AB0000000000000000000052 /* Speaker.swift in Sources */,
-				AB0000000000000000000053 /* Extras.swift in Sources */,
-				AB0000000000000000000054 /* Badges.swift in Sources */,
-				AB0000000000000000000055 /* BatteryStats.swift in Sources */,
-				AB0000000000000000000056 /* ExtraViews.swift in Sources */,
-				AB0000000000000000000057 /* ContentView.swift in Sources */,
-				AB0000000000000000000058 /* Features2.swift in Sources */,
-				AB0000000000000000000059 /* Features3.swift in Sources */,
-				AB0000000000000000000060 /* Views3.swift in Sources */,
-				AB0000000000000000000061 /* PhoneLink.swift in Sources */,
-				AB0000000000000000000062 /* FeatureHub.swift in Sources */,
-				AB0000000000000000000063 /* RideAttributes.swift in Sources */,
-				AB0000000000000000000064 /* WidgetShare.swift in Sources */,
-				AB0000000000000000000065 /* WatchState.swift in Sources */,
+				AB0000000000000000000036 /* BMSMonitorApp.swift in Sources */,
+				AB0000000000000000000037 /* AppModel.swift in Sources */,
+				AB0000000000000000000038 /* BLEManager.swift in Sources */,
+				AB0000000000000000000039 /* FrameParser.swift in Sources */,
+				AB0000000000000000000040 /* LogStore.swift in Sources */,
+				AB0000000000000000000041 /* Uploader.swift in Sources */,
+				AB0000000000000000000042 /* RideTracker.swift in Sources */,
+				AB0000000000000000000043 /* TripStore.swift in Sources */,
+				AB0000000000000000000044 /* Notifier.swift in Sources */,
+				AB0000000000000000000045 /* LiveActivityManager.swift in Sources */,
+				AB0000000000000000000046 /* Components.swift in Sources */,
+				AB0000000000000000000047 /* HomeView.swift in Sources */,
+				AB0000000000000000000048 /* RideView.swift in Sources */,
+				AB0000000000000000000049 /* TripsView.swift in Sources */,
+				AB0000000000000000000050 /* TrackViews.swift in Sources */,
+				AB0000000000000000000051 /* NavManager.swift in Sources */,
+				AB0000000000000000000052 /* NavViews.swift in Sources */,
+				AB0000000000000000000053 /* Speaker.swift in Sources */,
+				AB0000000000000000000054 /* Extras.swift in Sources */,
+				AB0000000000000000000055 /* Badges.swift in Sources */,
+				AB0000000000000000000056 /* BatteryStats.swift in Sources */,
+				AB0000000000000000000057 /* ExtraViews.swift in Sources */,
+				AB0000000000000000000058 /* ContentView.swift in Sources */,
+				AB0000000000000000000059 /* Features2.swift in Sources */,
+				AB0000000000000000000060 /* Features3.swift in Sources */,
+				AB0000000000000000000061 /* Views3.swift in Sources */,
+				AB0000000000000000000062 /* PhoneLink.swift in Sources */,
+				AB0000000000000000000063 /* FeatureHub.swift in Sources */,
+				AB0000000000000000000064 /* RideAnalysis.swift in Sources */,
+				AB0000000000000000000065 /* RideAttributes.swift in Sources */,
+				AB0000000000000000000066 /* WidgetShare.swift in Sources */,
+				AB0000000000000000000067 /* WatchState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AB0000000000000000000090 /* Sources */ = {
+		AB0000000000000000000092 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AB0000000000000000000066 /* BMSWidget.swift in Sources */,
-				AB0000000000000000000067 /* HomeWidget.swift in Sources */,
-				AB0000000000000000000068 /* RideAttributes.swift in Sources */,
-				AB0000000000000000000069 /* WidgetShare.swift in Sources */,
+				AB0000000000000000000068 /* BMSWidget.swift in Sources */,
+				AB0000000000000000000069 /* HomeWidget.swift in Sources */,
+				AB0000000000000000000070 /* RideAttributes.swift in Sources */,
+				AB0000000000000000000071 /* WidgetShare.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		AB0000000000000000000093 /* Sources */ = {
+		AB0000000000000000000095 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AB0000000000000000000070 /* BMSWatchApp.swift in Sources */,
-				AB0000000000000000000071 /* WatchState.swift in Sources */,
+				AB0000000000000000000072 /* BMSWatchApp.swift in Sources */,
+				AB0000000000000000000073 /* WatchState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		AB0000000000000000000107 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = AB0000000000000000000103 /* BMSWidgetExtension */;
-			targetProxy = AB0000000000000000000106 /* PBXContainerItemProxy */;
-		};
 		AB0000000000000000000109 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = AB0000000000000000000104 /* BMSWatch */;
+			target = AB0000000000000000000105 /* BMSWidgetExtension */;
 			targetProxy = AB0000000000000000000108 /* PBXContainerItemProxy */;
+		};
+		AB0000000000000000000111 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AB0000000000000000000106 /* BMSWatch */;
+			targetProxy = AB0000000000000000000110 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		AB0000000000000000000110 /* Debug */ = {
+		AB0000000000000000000112 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -471,7 +475,7 @@
 			};
 			name = Debug;
 		};
-		AB0000000000000000000111 /* Release */ = {
+		AB0000000000000000000113 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -487,71 +491,24 @@
 			};
 			name = Release;
 		};
-		AB0000000000000000000112 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = BMSMonitor/BMSMonitor.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
-				DEVELOPMENT_TEAM = ZU27Q3S7UC;
-				ENABLE_PREVIEWS = NO;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = BMSMonitor/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gormanlu.bmsmonitor;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Debug;
-		};
-		AB0000000000000000000113 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = BMSMonitor/BMSMonitor.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 11;
-				DEVELOPMENT_TEAM = ZU27Q3S7UC;
-				ENABLE_PREVIEWS = NO;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = BMSMonitor/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gormanlu.bmsmonitor;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Release;
-		};
 		AB0000000000000000000114 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				APPLICATION_EXTENSION_API_ONLY = YES;
-				CODE_SIGN_ENTITLEMENTS = BMSWidget/BMSWidget.entitlements;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BMSMonitor/BMSMonitor.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 11;
 				DEVELOPMENT_TEAM = ZU27Q3S7UC;
+				ENABLE_PREVIEWS = NO;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = BMSWidget/Info.plist;
+				INFOPLIST_FILE = BMSMonitor/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.gormanlu.bmsmonitor.widget;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gormanlu.bmsmonitor;
 				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 1;
 			};
@@ -560,6 +517,53 @@
 		AB0000000000000000000115 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = BMSMonitor/BMSMonitor.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				DEVELOPMENT_TEAM = ZU27Q3S7UC;
+				ENABLE_PREVIEWS = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BMSMonitor/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gormanlu.bmsmonitor;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		AB0000000000000000000116 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = BMSWidget/BMSWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 11;
+				DEVELOPMENT_TEAM = ZU27Q3S7UC;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = BMSWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.gormanlu.bmsmonitor.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		AB0000000000000000000117 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = BMSWidget/BMSWidget.entitlements;
 				CODE_SIGN_STYLE = Automatic;
@@ -581,7 +585,7 @@
 			};
 			name = Release;
 		};
-		AB0000000000000000000116 /* Debug */ = {
+		AB0000000000000000000118 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -609,7 +613,7 @@
 			};
 			name = Debug;
 		};
-		AB0000000000000000000117 /* Release */ = {
+		AB0000000000000000000119 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -640,16 +644,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		AB0000000000000000000118 = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				AB0000000000000000000110 /* Debug */,
-				AB0000000000000000000111 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		AB0000000000000000000119 = {
+		AB0000000000000000000120 = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AB0000000000000000000112 /* Debug */,
@@ -658,7 +653,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AB0000000000000000000120 = {
+		AB0000000000000000000121 = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AB0000000000000000000114 /* Debug */,
@@ -667,7 +662,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		AB0000000000000000000121 = {
+		AB0000000000000000000122 = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				AB0000000000000000000116 /* Debug */,
@@ -676,7 +671,16 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		AB0000000000000000000123 = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				AB0000000000000000000118 /* Debug */,
+				AB0000000000000000000119 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 	};
-	rootObject = AB0000000000000000000105 /* Project object */;
+	rootObject = AB0000000000000000000107 /* Project object */;
 }

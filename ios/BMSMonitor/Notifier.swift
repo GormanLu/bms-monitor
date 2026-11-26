@@ -75,7 +75,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     /// 每收到一批数据调用一次（内部 5 秒最多检查一次）
-    func check(blocks: [BlockData]) {
+    func check(blocks: [BlockData], riding: Bool = false) {
         let now = Date()
         guard now.timeIntervalSince(lastCheck) >= 5, blocks.count >= 2 else { return }
         lastCheck = now
@@ -93,7 +93,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         }
 
         // 充满：充了 10 分钟以上，然后所有块都不进电了，而且有保护板把充电关掉
-        let charging = blocks.contains { $0.current > 0.5 } && !blocks.contains { $0.current < -2 }
+        let charging = !riding && blocks.contains { $0.current > 0.5 } && !blocks.contains { $0.current < -2 }
         if charging {
             if chargingSince == nil {
                 chargingSince = now

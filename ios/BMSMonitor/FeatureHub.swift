@@ -35,6 +35,10 @@ struct FeatureHubView: View {
                                             detail: "测 0 到 30 km/h 要几秒，和以前的成绩比",
                                             badge: m.perf.best30.map { String(format: "最好 %.1f 秒", $0) })
                             }
+                            NavigationLink { RideCompareView() } label: {
+                                FeatureTile(icon: "slider.horizontal.below.square.and.square.filled", color: .mint, title: "骑行分析 · 参数对比",
+                                            detail: "每趟的电流、功率、起步、回充、耗电，按控制器参数分组比较")
+                            }
                             Button { m.engineOn.toggle() } label: {
                                 FeatureTile(icon: "speaker.wave.2.fill", color: .purple, title: "声浪",
                                             detail: "骑行时按车速和功率放模拟发动机声，点一下开关",

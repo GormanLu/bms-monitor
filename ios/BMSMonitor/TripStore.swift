@@ -35,6 +35,8 @@ struct Trip: Codable, Identifiable {
     var descentM: Double? = nil
     var score: DriveScore? = nil
     var blockNames: [String]? = nil
+    var ana: RideAnalysis? = nil    // 电池分析（第 10 版起）
+    var tag: String? = nil          // 用户写的控制器参数
 
     var km: Double { distM / 1000 }
     var duration: TimeInterval { end.timeIntervalSince(start) }
@@ -61,6 +63,13 @@ final class TripStore: ObservableObject {
 
     func delete(at offsets: IndexSet) {
         trips.remove(atOffsets: offsets)
+        save()
+    }
+
+    func setTag(_ id: UUID, _ s: String) {
+        guard let i = trips.firstIndex(where: { $0.id == id }) else { return }
+        let v = s.trimmingCharacters(in: .whitespacesAndNewlines)
+        trips[i].tag = v.isEmpty ? nil : v
         save()
     }
 

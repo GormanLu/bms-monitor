@@ -79,6 +79,7 @@ struct TripDetailView: View {
                             }
                         }
                     }
+                    RideAnalysisCard(trip: trip)
                     if let s = trip.score ?? scoreTrip(samples: trip.samples, km: trip.km, whPerKm: trip.whPerKm) { ScoreCard(s: s) }
                     let same = sameRoute(trip, in: trips.trips)
                     if !same.isEmpty { SameRouteCard(trip: trip, others: same) }

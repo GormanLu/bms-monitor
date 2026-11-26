@@ -7,6 +7,7 @@ final class LiveActivityManager {
     private var lastState: RideAttributes.ContentState?
     private var lastPush = Date.distantPast
 
+    var active: Bool { activity != nil }
     var enabled: Bool { ActivityAuthorizationInfo().areActivitiesEnabled }
 
     func start(_ state: RideAttributes.ContentState) {

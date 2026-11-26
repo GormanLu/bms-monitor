@@ -28,6 +28,8 @@ struct ChargeSession: Codable, Identifiable {
     var stops: [String] = []  // 各块停止进电的先后顺序
     var complete: Bool        // 是不是充满后保护板自己停的
     var note: String = ""
+    var avgA: Double? = nil              // 充电时五块的平均电流
+    var blockA: [String: Double]? = nil  // 各块各自的平均电流
 
     var duration: TimeInterval { end.timeIntervalSince(start) }
 }
@@ -41,6 +43,9 @@ final class ChargeStore: ObservableObject {
     private var curMeanAh0 = 0.0
     private var lastAt = Date()
     private var idleSince: Date?
+    private var rawSince: Date?
+    private var aSum: [String: Double] = [:]
+    private var aCnt: [String: Int] = [:]
 
     init() { sessions = file.load() ?? [] }
 
@@ -49,12 +54,14 @@ final class ChargeStore: ObservableObject {
     func delete(at o: IndexSet) { sessions.remove(atOffsets: o); file.save(sessions) }
 
     /// 每收到一批数据调用一次
-    func feed(blocks: [BlockData], power: Double?) {
+    func feed(blocks: [BlockData], power: Double?, riding: Bool = false) {
         let now = Date()
         guard blocks.count >= 2 else { return }
         let meanAh = blocks.map(\.remainAh).reduce(0, +) / Double(blocks.count)
         let lowSoc = blocks.min { $0.remainAh < $1.remainAh }?.soc ?? 0
-        let charging = blocks.contains { $0.current > 0.5 } && !blocks.contains { $0.current < -2 }
+        // 骑车时电子刹车会回充一下，不能当成充电；而且要连续 20 秒都在进电才算开始充
+        let charging = !riding && blocks.contains { $0.current > 0.5 } && !blocks.contains { $0.current < -2 }
+        if charging { if rawSince == nil { rawSince = now } } else { rawSince = nil }
         let discharging = blocks.contains { $0.current < -2 }
 
         // 断开很久又连上：之前那次就算结束了
@@ -66,8 +73,9 @@ final class ChargeStore: ObservableObject {
         lastAt = now
 
         if cur == nil {
-            if charging {
-                cur = ChargeSession(start: now, end: now, ahIn: 0, wh: 0, maxW: 0, socStart: lowSoc, socEnd: lowSoc, complete: false)
+            if charging, let rs = rawSince, now.timeIntervalSince(rs) >= 20 {
+                aSum = [:]; aCnt = [:]
+                cur = ChargeSession(start: rs, end: now, ahIn: 0, wh: 0, maxW: 0, socStart: lowSoc, socEnd: lowSoc, complete: false)
                 curMeanAh0 = meanAh
                 idleSince = nil
                 LogStore.shared.log("开始记录这次充电")
@@ -79,6 +87,7 @@ final class ChargeStore: ObservableObject {
         c.end = now
         // 记下各块停止进电的先后（别的块还在充时）
         if charging {
+            for b in blocks where b.current > 0.5 { aSum[b.name, default: 0] += b.current; aCnt[b.name, default: 0] += 1 }
             for b in blocks where abs(b.current) < 0.2 && !c.stops.contains(b.name) { c.stops.append(b.name) }
             idleSince = nil
         }
@@ -102,6 +111,9 @@ final class ChargeStore: ObservableObject {
         c.end = at
         c.ahIn = max(0, meanAh - curMeanAh0)
         c.socEnd = soc
+        var ba: [String: Double] = [:]
+        for (k, s) in aSum { if let n = aCnt[k], n > 0 { ba[k] = s / Double(n) } }
+        if !ba.isEmpty { c.blockA = ba; c.avgA = ba.values.reduce(0, +) / Double(ba.count) }
         guard c.duration >= 300 else { return }      // 不到 5 分钟的不算
         sessions.insert(c, at: 0)
         file.save(sessions)

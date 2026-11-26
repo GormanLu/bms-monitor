@@ -109,7 +109,17 @@ struct SettingsView: View {
                     Toggle("电量低于 20% 和 10% 时提醒", isOn: $notifyLow)
                     Toggle("电池温度到 50 °C 时提醒", isOn: $notifyTemp)
                 }
-                Section(header: Text("骑行"), footer: Text("自动开始：连着电池时，电机持续出力 6 秒就自动开始记录（手动结束后 3 分钟内不会再自动开始）。app 在后台时自动开始，可能拿不到定位，车速和里程会缺。自动结束：车速和电流都停了 5 分钟。")) {
+                Section(header: Text("骑行"), footer: Text("自动开始：连着电池时，电机持续出力 6 秒就自动开始记录（手动结束后 3 分钟内不会再自动开始）。app 在后台时自动开始，定位权限要选\"始终\"才有车速和里程，否则要等你打开 app 才补上；锁屏和灵动岛也要打开 app 才会出来（系统不让后台打开）。自动结束：车速和电流都停了 5 分钟。")) {
+                    HStack {
+                        Text("定位权限")
+                        Spacer()
+                        Text(m.ride.authText).foregroundStyle(m.ride.isAlways ? Theme.good : Theme.warn)
+                    }
+                    if !m.ride.isAlways {
+                        Button("去系统设置改成\"始终\"") {
+                            if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) }
+                        }
+                    }
                     Toggle("骑起来自动开始记录", isOn: $autoStart)
                     Toggle("停车 5 分钟自动结束", isOn: $autoStop)
                     Toggle("超速语音提醒", isOn: $speedAlert)

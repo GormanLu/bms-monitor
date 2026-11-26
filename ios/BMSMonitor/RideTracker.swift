@@ -46,6 +46,7 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
 
     func start() {
         if lm.authorizationStatus == .notDetermined { lm.requestWhenInUseAuthorization() }
+        else { askAlways() }
         lm.allowsBackgroundLocationUpdates = true
         lm.showsBackgroundLocationIndicator = true
         anchor = nil; prev = nil; prevSpeed = nil; track = []
@@ -73,6 +74,30 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
         on = false
         speedKmh = nil
         startedAt = nil
+    }
+
+    /// 权限是"使用期间"时，app 在后台自动开始骑行拿不到定位；在前台时问一次能不能改成"始终"（系统只会问一次）
+    func askAlways() {
+        guard lm.authorizationStatus == .authorizedWhenInUse, UIApplication.shared.applicationState == .active,
+              !UserDefaults.standard.bool(forKey: "loc.askedAlways") else { return }
+        UserDefaults.standard.set(true, forKey: "loc.askedAlways")
+        lm.requestAlwaysAuthorization()
+    }
+    var isAlways: Bool { lm.authorizationStatus == .authorizedAlways }
+    var authText: String {
+        switch lm.authorizationStatus {
+        case .authorizedAlways: return "始终"
+        case .authorizedWhenInUse: return "使用 App 期间"
+        case .denied, .restricted: return "不允许"
+        default: return "还没问过"
+        }
+    }
+
+    /// 回到前台时调用：后台开始的骑行没拿到定位，这时重新开
+    func ensureLocation() {
+        guard on else { return }
+        lm.allowsBackgroundLocationUpdates = true
+        lm.startUpdatingLocation()
     }
 
     /// 现在的车速，超过 5 秒没有新定位就当作不知道
@@ -152,6 +177,9 @@ final class RideTracker: NSObject, ObservableObject, CLLocationManagerDelegate {
     }
 
     func locationManager(_ m: CLLocationManager, didFailWithError error: Error) {
-        LogStore.shared.log("定位出错：\(error.localizedDescription)")
+        LogStore.shared.log("定位出错：\(error.localizedDescription)" + (UIApplication.shared.applicationState == .background && !isAlways ? "（定位权限不是\"始终\"，app 在后台时开不了定位）" : ""))
+        if on, !isAlways, UIApplication.shared.applicationState == .background {
+            note = "在后台自动开始的，没拿到定位，打开 app 后会补上。想后台也有车速：设置 → 定位权限改成\"始终\"。"
+        }
     }
 }

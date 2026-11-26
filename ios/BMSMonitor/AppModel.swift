@@ -25,6 +25,9 @@ final class AppModel: ObservableObject {
     }
     private var autoMoveSince: Date?
     private var stillSince: Date?
+    private var lastMovingAt = Date()
+    private var stopping = false
+    private let analyzer = RideAnalyzer()
     private var manualStopAt = Date.distantPast
     private var overCount = 0
     private var lastOverAt = Date.distantPast
@@ -92,6 +95,7 @@ final class AppModel: ObservableObject {
         nc.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
             LogStore.shared.log("App 回到前台")
             self?.refreshStored()
+            self?.backToForeground()
         }
         refreshStored()
     }
@@ -106,15 +110,19 @@ final class AppModel: ObservableObject {
         let frames = parser.feed(bytes)
         for fr in frames {
             switch fr {
-            case .block(let b): blocks[b.id] = b
+            case .block(let b):
+                blocks[b.id] = b
+                if ride.on {
+                    analyzer.feed(i: b.current, v: totalV, cells: cells, temps: liveBlocks.flatMap(\.temps), speed: ride.freshSpeed)
+                }
             case .summary(let s): summary = s
             }
             lastDataAt = now
         }
         if !frames.isEmpty {
             let bs = liveBlocks
-            Notifier.shared.check(blocks: bs)
-            charges.feed(blocks: bs, power: power)
+            Notifier.shared.check(blocks: bs, riding: ride.on)
+            charges.feed(blocks: bs, power: power, riding: ride.on)
             let n = health.records.count
             health.feed(blocks: bs, summarySoc: summary?.soc)
             if health.records.count != n { evaluateBadges() }
@@ -144,6 +152,14 @@ final class AppModel: ObservableObject {
                                     gapMv: packGapMv ?? 0, tempMax: tempRange?.1 ?? 0,
                                     names: bs.map(\.name), socs: bs.map { Int($0.soc) }, parkedAt: parking.spot?.t))
         WidgetCenter.shared.reloadTimelines(ofKind: "BMSHome")
+    }
+
+    // MARK: 回到前台：补上后台开始骑行时打不开的定位和灵动岛
+    private func backToForeground() {
+        ride.askAlways()
+        guard ride.on else { return }
+        ride.ensureLocation()
+        if !live.active { live.start(liveState()) }
     }
 
     // MARK: 自动开始骑行：电池在持续放电（电机在转）6 秒以上
@@ -218,7 +234,7 @@ final class AppModel: ObservableObject {
     }
     var isCharging: Bool {
         let l = liveBlocks
-        return l.contains { $0.current > 0.5 } && !l.contains { $0.current < -2 }
+        return !ride.on && l.contains { $0.current > 0.5 } && !l.contains { $0.current < -2 }
     }
     /// 充满还要多久（小时）：还在进电的几块里，离满最远的那一块按它自己的电流算
     var chargeHours: Double? {
@@ -244,19 +260,27 @@ final class AppModel: ObservableObject {
         ride.start()
         alt.start()
         if engineOn { engine.start() }
-        stillSince = nil; overCount = 0
+        stillSince = nil; overCount = 0; lastMovingAt = Date()
+        analyzer.reset()
         tripWh = 0; tripMaxW = 0; tripSamples = []; tickCount = 0
         tripSocStart = lowest?.soc ?? 0
         lastKmSpoken = 0
         lastTick = Date()
         UIApplication.shared.isIdleTimerDisabled = true          // 骑车时屏幕常亮
         live.start(liveState())
+        if UIApplication.shared.applicationState == .background && !ride.isAlways {
+            LogStore.shared.log("在后台开始的骑行：定位权限是\"" + ride.authText + "\"，后台开不了定位，回到 app 后补上")
+        }
         tick?.invalidate()
         tick = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in self?.rideTick() }
         tab = 1
     }
 
     private func stopRide(auto: Bool = false) {
+        // 防止重入：以前结束时会再走一遍 rideTick，又触发自动结束，自己调用自己几百次，app 直接崩掉，这一趟也没存下来
+        guard ride.on, !stopping else { return }
+        stopping = true
+        defer { stopping = false }
         tick?.invalidate(); tick = nil
         rideTick()
         if !auto { manualStopAt = Date() }
@@ -280,7 +304,7 @@ final class AppModel: ObservableObject {
                            socStart: tripSocStart, socEnd: lowest?.soc ?? tripSocStart, samples: samples,
                            track: track.count >= 2 ? track : nil,
                            climbM: alt.available ? climb : nil, descentM: alt.available ? descent : nil,
-                           score: score, blockNames: names.isEmpty ? nil : names))
+                           score: score, blockNames: names.isEmpty ? nil : names, ana: analyzer.result()))
             LogStore.shared.log(String(format: "这一趟用电 %.0f Wh，最大功率 %.0f W，爬升 %.0f m，评分 %d", tripWh, tripMaxW, climb, score?.total ?? -1))
             if let c = ChallengeStore.shared.check(trips.trips) {
                 Notifier.shared.postNow("今日挑战完成", c.title + "，+\(ChallengeStore.pointsEach) 分")
@@ -319,12 +343,12 @@ final class AppModel: ObservableObject {
             }
         } else { overCount = 0 }
         // 自动结束：车速和电流都停了 5 分钟
-        if Pref.autoStop {
-            let fresh = lastDataAt.map { now.timeIntervalSince($0) < 15 } ?? false
-            let moving = (ride.freshSpeed ?? 0) > 3 || (fresh && abs(power ?? 0) > 150)
-            if moving { stillSince = nil }
-            else if stillSince == nil { stillSince = now }
-            else if now.timeIntervalSince(stillSince!) >= 300 && perf.phase == .idle {
+        let fresh = lastDataAt.map { now.timeIntervalSince($0) < 15 } ?? false
+        if (ride.freshSpeed ?? 0) > 3 || (fresh && abs(power ?? 0) > 150) { lastMovingAt = now }
+        // app 被系统挂起几个小时再醒来时，按最后一次还在动的时刻结束，而不是醒来的时刻
+        if Pref.autoStop, !stopping, now.timeIntervalSince(lastMovingAt) >= 300, perf.phase == .idle {
+            do {
+                stillSince = lastMovingAt
                 LogStore.shared.log("停了 5 分钟，自动结束骑行")
                 say("停了 5 分钟，已自动结束骑行")
                 stopRide(auto: true)
