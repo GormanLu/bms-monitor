@@ -119,7 +119,35 @@ func rideHints(_ trip: Trip, others: [Trip]) -> [(String, Color)] {
             }
         }
     }
+    if let e = elevationNote(trip) { h.append(e) }
     return h
+}
+
+/// 坡度对耗电的影响：车和人按约 250 kg、电机加控制器效率按 75% 估
+/// 净上坡要多花 m·g·h / 效率 的电；净下坡等于白捡这么多（这车回充很弱，下坡省下的是"不用拧电门"的那部分）
+let rideMassKg = 250.0
+func elevationWh(_ netM: Double) -> Double { rideMassKg * 9.81 * netM / 3600 / 0.75 }
+
+/// 按平路折算的每公里耗电：把净高差那部分电加回去或扣掉
+func flatWhPerKm(_ trip: Trip) -> Double? {
+    guard let up = trip.climbM, let down = trip.descentM, trip.km >= 0.5, trip.energyWh > 1 else { return nil }
+    return max(0, trip.energyWh - elevationWh(up - down)) / trip.km
+}
+
+func elevationNote(_ trip: Trip) -> (String, Color)? {
+    guard let up = trip.climbM, let down = trip.descentM else { return nil }
+    let net = up - down
+    var s = String(format: "爬升 %.0f m、下坡 %.0f m，", up, down)
+    if abs(net) < 3 {
+        s += "起点终点差不多一样高，坡度对耗电基本没影响。"
+    } else {
+        s += String(format: "净%@ %.0f m，大约%@ %.0f Wh", net > 0 ? "上坡" : "下坡", abs(net), net > 0 ? "多用" : "少用", abs(elevationWh(net)))
+        if let f = flatWhPerKm(trip), let w = trip.whPerKm {
+            s += String(format: "；按平路折算每公里约 %.0f Wh（实际 %.0f）", f, w)
+        }
+        s += "。车和人按 250 kg 估；同一条路一去一回，坡度的影响会抵消。"
+    }
+    return (s, Theme.sub)
 }
 
 // MARK: - 骑行详情里的分析卡片

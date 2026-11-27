@@ -312,7 +312,8 @@ final class AppModel: ObservableObject {
                            track: track.count >= 2 ? track : nil,
                            climbM: alt.available ? climb : nil, descentM: alt.available ? descent : nil,
                            score: score, blockNames: names.isEmpty ? nil : names, ana: analyzer.result()))
-            LogStore.shared.log(String(format: "这一趟用电 %.0f Wh，最大功率 %.0f W，爬升 %.0f m，评分 %d", tripWh, tripMaxW, climb, score?.total ?? -1))
+            LogStore.shared.log(String(format: "这一趟用电 %.0f Wh，最大功率 %.0f W，爬升 %.0f m，下坡 %.0f m，净高差 %+.0f m，评分 %d",
+                                       tripWh, tripMaxW, climb, descent, climb - descent, score?.total ?? -1))
             if let c = ChallengeStore.shared.check(trips.trips) {
                 Notifier.shared.postNow("今日挑战完成", c.title + "，+\(ChallengeStore.pointsEach) 分")
             }

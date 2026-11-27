@@ -316,6 +316,9 @@ struct TripExtraCharts: View {
                     StatTile(label: "累计下坡", value: String(format: "%.0f", trip.descentM ?? 0), unit: "m")
                     StatTile(label: "最陡一段", value: maxGrade(alt).map { String(format: "%.0f", $0) } ?? "--", unit: "%")
                 }
+                if let up = trip.climbM, let down = trip.descentM {
+                    Text(String(format: "净高差 %+.0f m（正数是终点比起点高）", up - down)).font(.caption).foregroundStyle(Theme.sub)
+                }
                 Chart(alt.indices, id: \.self) { i in
                     AreaMark(x: .value("分钟", alt[i].t / 60), y: .value("高度", alt[i].a ?? 0))
                         .foregroundStyle(LinearGradient(colors: [Theme.good.opacity(0.35), Theme.good.opacity(0.02)], startPoint: .top, endPoint: .bottom))
@@ -424,7 +427,7 @@ struct PosterView: View {
                 GridRow {
                     StatTile(label: "用电", value: String(format: "%.0f", trip.energyWh), unit: "Wh")
                     StatTile(label: "电费", value: String(format: "%.2f", trip.energyWh / 1000 / 0.85 * trips.price), unit: "元")
-                    StatTile(label: "爬升", value: trip.climbM.map { String(format: "%.0f", $0) } ?? "--", unit: "m")
+                    StatTile(label: "爬升 / 下坡", value: trip.climbM.map { up in String(format: "%.0f/%.0f", up, trip.descentM ?? 0) } ?? "--", unit: "m")
                 }
             }
             HStack {
