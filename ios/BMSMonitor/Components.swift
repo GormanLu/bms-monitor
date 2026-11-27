@@ -1,12 +1,19 @@
 import SwiftUI
 
 // MARK: 配色和卡片
+// 颜色、圆角、数字字体都跟着当前主题走（换主题时 ContentView 用 .id(theme) 整个重画）
 enum Theme {
-    static let bgTop = Color(red: 0.07, green: 0.09, blue: 0.15)
-    static let bgBottom = Color(red: 0.02, green: 0.03, blue: 0.06)
-    static let card = Color.white.opacity(0.06)
-    static let stroke = Color.white.opacity(0.09)
-    static var accent: Color { ThemeKind.current.accent }
+    static var kind: ThemeKind { ThemeKind.current }
+    static var bgTop: Color { kind.bgTop }
+    static var bgBottom: Color { kind.bgBottom }
+    static var card: Color { kind.card }
+    static var stroke: Color { kind.stroke }
+    static var accent: Color { kind.accent }
+    static var accent2: Color { kind.accent2 }
+    static var radius: CGFloat { kind.radius }
+    static var font: Font.Design { kind.font }
+    /// 实心的卡片底色（弹窗、海报这种不透明的地方用）
+    static var solid: Color { kind.solid }
     static let good = Color(red: 0.36, green: 0.87, blue: 0.55)
     static let warn = Color(red: 1.0, green: 0.75, blue: 0.30)
     static let bad = Color(red: 1.0, green: 0.40, blue: 0.38)
@@ -25,8 +32,83 @@ func gapStyle(_ g: Int?, loaded: Bool) -> (color: Color, note: String) {
 }
 
 struct AppBackground: View {
+    var kind: ThemeKind = .current
     var body: some View {
-        LinearGradient(colors: [Theme.bgTop, Theme.bgBottom], startPoint: .top, endPoint: .bottom).ignoresSafeArea()
+        ZStack {
+            LinearGradient(colors: [kind.bgTop, kind.bgBottom], startPoint: .top, endPoint: .bottom)
+            ThemeDecor(kind: kind)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+/// 每个主题自己的背景纹理：都是静态图形，不做动画，不费电
+struct ThemeDecor: View {
+    let kind: ThemeKind
+    var body: some View {
+        GeometryReader { g in
+            let w = g.size.width, h = g.size.height
+            switch kind {
+            case .blue:
+                // 深夜蓝：顶上一团淡淡的蓝光
+                RadialGradient(colors: [kind.accent.opacity(0.22), .clear], center: .init(x: 0.5, y: 0), startRadius: 0, endRadius: w * 0.9)
+            case .green:
+                // 极光：两条斜着的绿、青色光带
+                ZStack {
+                    Ellipse().fill(kind.accent.opacity(0.28)).frame(width: w * 1.3, height: h * 0.16)
+                        .rotationEffect(.degrees(-18)).offset(x: -w * 0.1, y: -h * 0.36).blur(radius: 50)
+                    Ellipse().fill(kind.accent2.opacity(0.22)).frame(width: w * 1.1, height: h * 0.12)
+                        .rotationEffect(.degrees(-8)).offset(x: w * 0.2, y: -h * 0.27).blur(radius: 55)
+                    Ellipse().fill(Color(red: 0.55, green: 0.35, blue: 1.0).opacity(0.10)).frame(width: w * 0.8, height: h * 0.10)
+                        .offset(x: w * 0.3, y: -h * 0.42).blur(radius: 50)
+                }
+                .frame(width: w, height: h)
+            case .orange:
+                // 落日：顶上半个太阳，下半截切成横条
+                ZStack {
+                    RadialGradient(colors: [kind.accent.opacity(0.30), kind.accent2.opacity(0.10), .clear], center: .init(x: 0.5, y: 0.08), startRadius: 0, endRadius: w)
+                    Circle()
+                        .fill(LinearGradient(colors: [Color(red: 1, green: 0.82, blue: 0.35), kind.accent, kind.accent2], startPoint: .top, endPoint: .bottom))
+                        .frame(width: w * 0.5, height: w * 0.5)
+                        .mask(VStack(spacing: 0) {
+                            Rectangle().frame(height: w * 0.25)
+                            ForEach(0..<7, id: \.self) { i in
+                                Rectangle().frame(height: CGFloat(10 - i))
+                                Color.clear.frame(height: CGFloat(3 + i))
+                            }
+                            Spacer(minLength: 0)
+                        })
+                        .opacity(0.45)
+                        .position(x: w * 0.8, y: h * 0.11)
+                        .blur(radius: 1)
+                }
+            case .purple:
+                // 赛博：霓虹网格 + 两角的品红、青色光
+                ZStack {
+                    Path { p in
+                        let s: CGFloat = 28
+                        var x: CGFloat = 0
+                        while x <= w { p.move(to: .init(x: x, y: 0)); p.addLine(to: .init(x: x, y: h)); x += s }
+                        var y: CGFloat = 0
+                        while y <= h { p.move(to: .init(x: 0, y: y)); p.addLine(to: .init(x: w, y: y)); y += s }
+                    }
+                    .stroke(kind.accent.opacity(0.07), lineWidth: 0.6)
+                    RadialGradient(colors: [kind.accent.opacity(0.30), .clear], center: .topLeading, startRadius: 0, endRadius: w * 0.9)
+                    RadialGradient(colors: [kind.accent2.opacity(0.18), .clear], center: .bottomTrailing, startRadius: 0, endRadius: w * 0.9)
+                }
+            case .gold:
+                // 黑金：很细的斜纹 + 顶上一点暖光
+                ZStack {
+                    Path { p in
+                        var x: CGFloat = -h
+                        while x <= w { p.move(to: .init(x: x, y: h)); p.addLine(to: .init(x: x + h, y: 0)); x += 9 }
+                    }
+                    .stroke(kind.accent.opacity(0.035), lineWidth: 0.5)
+                    RadialGradient(colors: [kind.accent.opacity(0.14), .clear], center: .init(x: 0.5, y: 0), startRadius: 0, endRadius: w * 0.8)
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -48,8 +130,9 @@ struct GlassCard<Content: View>: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Theme.stroke, lineWidth: 1))
+        .background(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).fill(Theme.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).stroke(Theme.stroke, lineWidth: Theme.kind.strokeWidth))
+        .shadow(color: Theme.kind.glow, radius: Theme.kind == .purple ? 10 : 0)
     }
 }
 
@@ -67,7 +150,7 @@ struct StatTile: View {
             }
             .foregroundStyle(Theme.sub)
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value).font(.system(.title3, design: .rounded).weight(.semibold)).monospacedDigit().foregroundStyle(color)
+                Text(value).font(.system(.title3, design: Theme.font).weight(.semibold)).monospacedDigit().foregroundStyle(color)
                 if !unit.isEmpty { Text(unit).font(.caption).foregroundStyle(Theme.sub) }
             }
         }
@@ -109,7 +192,7 @@ struct Speedometer: View {
                     .rotationEffect(.degrees(135))
                 Circle()
                     .trim(from: 0, to: 0.75 * ratio)
-                    .stroke(AngularGradient(colors: [Theme.accent, Theme.good, Theme.warn, Theme.bad], center: .center,
+                    .stroke(AngularGradient(colors: Theme.kind.gauge, center: .center,
                                             startAngle: .degrees(0), endAngle: .degrees(270)),
                             style: StrokeStyle(lineWidth: size * 0.07, lineCap: .round))
                     .rotationEffect(.degrees(135))
@@ -124,7 +207,7 @@ struct Speedometer: View {
                         .rotationEffect(.degrees(-135 + Double(i) * 270 / (maxSpeed / 5)))
                     if major {
                         Text("\(i * 5)")
-                            .font(.system(size: size * 0.05, weight: .medium, design: .rounded))
+                            .font(.system(size: size * 0.05, weight: .medium, design: Theme.font))
                             .foregroundStyle(Theme.faint)
                             .rotationEffect(.degrees(135 - Double(i) * 270 / (maxSpeed / 5)))
                             .offset(y: -size * 0.29)
@@ -133,7 +216,7 @@ struct Speedometer: View {
                 }
                 VStack(spacing: 0) {
                     Text(speed.map { String(format: "%.0f", $0) } ?? "--")
-                        .font(.system(size: size * 0.26, weight: .bold, design: .rounded))
+                        .font(.system(size: size * 0.26, weight: .bold, design: Theme.font))
                         .monospacedDigit()
                         .foregroundStyle(.white)
                     Text("公里/小时").font(.system(size: size * 0.045)).foregroundStyle(Theme.sub)

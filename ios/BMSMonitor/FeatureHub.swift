@@ -187,9 +187,9 @@ struct FeatureTile: View {
         }
         .frame(maxWidth: .infinity, minHeight: 136, alignment: .topLeading)
         .padding(14)
-        .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.card))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Theme.stroke))
-        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).fill(Theme.card))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).stroke(Theme.stroke))
+        .contentShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
     }
 }
 
@@ -206,8 +206,16 @@ struct ParkPage: View {
 
 struct ThemePage: View {
     var body: some View {
-        Form {
-            Section(footer: Text("在\"徽章和等级\"里升级，解锁更多颜色。")) { ThemePicker() }
+        ZStack {
+            AppBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("换的是整套风格：背景、卡片、圆角、表盘颜色和数字字体。没解锁的也能看预览，在\"徽章和等级\"里升级解锁。")
+                        .font(.caption).foregroundStyle(Theme.sub)
+                    ThemePicker()
+                }
+                .padding(16)
+            }
         }
         .navigationTitle("仪表主题")
         .navigationBarTitleDisplayMode(.inline)

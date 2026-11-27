@@ -246,7 +246,7 @@ struct PerfTestView: View {
                     Section {
                         VStack(spacing: 10) {
                             Text(perf.message).font(.title3.weight(.bold)).multilineTextAlignment(.center)
-                            Text(String(format: "%.1f 秒", perf.elapsed)).font(.system(size: 54, weight: .bold, design: .rounded)).monospacedDigit()
+                            Text(String(format: "%.1f 秒", perf.elapsed)).font(.system(size: 54, weight: .bold, design: Theme.font)).monospacedDigit()
                                 .foregroundStyle(perf.phase == .running ? Theme.warn : .white)
                             HStack {
                                 StatTile(label: "0～10", value: perf.live?.t10.map { String(format: "%.1f", $0) } ?? "--", unit: "秒")

@@ -21,7 +21,7 @@ struct HandlebarView: View {
                             Image(systemName: navIcon(for: nav.nextText)).font(.system(size: 44, weight: .bold))
                             VStack(alignment: .leading) {
                                 Text(nav.nextDist >= 1000 ? String(format: "%.1f 公里", nav.nextDist / 1000) : "\(Int(nav.nextDist)) 米")
-                                    .font(.system(size: 34, weight: .bold, design: .rounded)).monospacedDigit()
+                                    .font(.system(size: 34, weight: .bold, design: Theme.font)).monospacedDigit()
                                 Text(nav.nextText).font(.title3).lineLimit(1).foregroundStyle(Theme.sub)
                             }
                             Spacer()
@@ -31,7 +31,7 @@ struct HandlebarView: View {
                     }
                     Spacer()
                     Text(v.map { String(format: "%.0f", $0) } ?? "--")
-                        .font(.system(size: 190, weight: .heavy, design: .rounded)).monospacedDigit()
+                        .font(.system(size: 190, weight: .heavy, design: Theme.font)).monospacedDigit()
                         .foregroundStyle(over ? Theme.bad : .white)
                         .minimumScaleFactor(0.5).lineLimit(1)
                     Text("km/h").font(.title2).foregroundStyle(Theme.sub)
@@ -69,7 +69,7 @@ struct HandlebarView: View {
     private func big(_ v: String, _ unit: String, _ label: String, _ c: Color) -> some View {
         VStack(spacing: 2) {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(v).font(.system(size: 40, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(c)
+                Text(v).font(.system(size: 40, weight: .bold, design: Theme.font)).monospacedDigit().foregroundStyle(c)
                     .minimumScaleFactor(0.5).lineLimit(1)
                 Text(unit).font(.caption).foregroundStyle(Theme.sub)
             }
@@ -189,7 +189,7 @@ struct GoalCard: View {
                 ZStack {
                     Ring(progress: km / max(goal, 1), color: km >= goal ? Theme.good : Theme.accent, lineWidth: 9)
                     VStack(spacing: 0) {
-                        Text(String(format: "%.0f", km)).font(.system(.title3, design: .rounded).weight(.bold)).monospacedDigit()
+                        Text(String(format: "%.0f", km)).font(.system(.title3, design: Theme.font).weight(.bold)).monospacedDigit()
                         Text(String(format: "/%.0f km", goal)).font(.system(size: 9)).foregroundStyle(Theme.sub)
                     }
                 }
@@ -218,7 +218,7 @@ struct SavingsCard: View {
         let s = savings(trips.trips, price: trips.price)
         GlassCard(title: "省钱账本 · 减碳", icon: "yensign.circle.fill") {
             HStack(alignment: .firstTextBaseline) {
-                Text(String(format: "%.0f", max(0, s.fuel - s.elec))).font(.system(size: 40, weight: .bold, design: .rounded)).monospacedDigit().foregroundStyle(Theme.good)
+                Text(String(format: "%.0f", max(0, s.fuel - s.elec))).font(.system(size: 40, weight: .bold, design: Theme.font)).monospacedDigit().foregroundStyle(Theme.good)
                 Text("元").foregroundStyle(Theme.sub)
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
@@ -247,7 +247,7 @@ struct ScoreCard: View {
             HStack(spacing: 16) {
                 ZStack {
                     Ring(progress: Double(s.total) / 100, color: color(s.total), lineWidth: 9)
-                    Text("\(s.total)").font(.system(.title, design: .rounded).weight(.bold)).monospacedDigit()
+                    Text("\(s.total)").font(.system(.title, design: Theme.font).weight(.bold)).monospacedDigit()
                 }
                 .frame(width: 80, height: 80)
                 VStack(spacing: 6) {
@@ -405,12 +405,12 @@ struct PosterView: View {
             }
             Text(trip.start.formatted(.dateTime.year().month().day().hour().minute())).font(.caption).foregroundStyle(Theme.sub)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(String(format: "%.2f", trip.km)).font(.system(size: 54, weight: .heavy, design: .rounded)).monospacedDigit()
+                Text(String(format: "%.2f", trip.km)).font(.system(size: 54, weight: .heavy, design: Theme.font)).monospacedDigit()
                 Text("公里").foregroundStyle(Theme.sub)
                 Spacer()
                 if let s = trip.score {
                     VStack(spacing: 0) {
-                        Text("\(s.total)").font(.system(.title, design: .rounded).weight(.bold)).foregroundStyle(Theme.warn)
+                        Text("\(s.total)").font(.system(.title, design: Theme.font).weight(.bold)).foregroundStyle(Theme.warn)
                         Text("评分").font(.caption2).foregroundStyle(Theme.sub)
                     }
                 }
@@ -437,7 +437,7 @@ struct PosterView: View {
         }
         .padding(16)
         .background(RoundedRectangle(cornerRadius: 26, style: .continuous)
-            .fill(LinearGradient(colors: [Color(red: 0.10, green: 0.14, blue: 0.30), Color(red: 0.04, green: 0.05, blue: 0.10)], startPoint: .top, endPoint: .bottom)))
+            .fill(LinearGradient(colors: [Theme.solid, Theme.bgBottom], startPoint: .top, endPoint: .bottom)))
         .foregroundStyle(.white)
     }
 
@@ -616,22 +616,81 @@ struct BatteryReportPage: View {
 }
 
 // MARK: - 主题选择
+/// 每个主题一张小预览：背景纹理、卡片、表盘、数字字体都按那个主题画，没解锁的也能先看
 struct ThemePicker: View {
     @EnvironmentObject var badges: BadgeStore
     @AppStorage("theme") private var theme = "blue"
     var body: some View {
-        ForEach(ThemeKind.allCases) { k in
-            let locked = badges.level.index < k.unlockLevel
-            Button { if !locked { theme = k.rawValue } } label: {
-                HStack {
-                    Circle().fill(k.accent).frame(width: 18, height: 18)
-                    Text(k.title).foregroundStyle(locked ? .secondary : .primary)
-                    Spacer()
-                    if locked { Label("Lv.\(k.unlockLevel) 解锁", systemImage: "lock.fill").font(.caption).foregroundStyle(.secondary) }
-                    else if theme == k.rawValue { Image(systemName: "checkmark").foregroundStyle(k.accent) }
+        VStack(spacing: 14) {
+            ForEach(ThemeKind.allCases) { k in
+                let locked = badges.level.index < k.unlockLevel
+                Button { if !locked { withAnimation { theme = k.rawValue } } } label: {
+                    ThemePreview(kind: k, selected: theme == k.rawValue, locked: locked)
+                }
+                .buttonStyle(.plain)
+                .disabled(locked)
+            }
+        }
+    }
+}
+
+struct ThemePreview: View {
+    let kind: ThemeKind
+    var selected: Bool
+    var locked: Bool
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            AppBackground(kind: kind)
+            HStack(alignment: .center, spacing: 14) {
+                // 迷你表盘
+                ZStack {
+                    Circle().trim(from: 0, to: 0.75).stroke(Color.white.opacity(0.08), style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        .rotationEffect(.degrees(135))
+                    Circle().trim(from: 0, to: 0.5)
+                        .stroke(AngularGradient(colors: kind.gauge, center: .center, startAngle: .degrees(0), endAngle: .degrees(270)),
+                                style: StrokeStyle(lineWidth: 7, lineCap: .round))
+                        .rotationEffect(.degrees(135))
+                    Text("28").font(.system(size: 26, weight: .bold, design: kind.font)).foregroundStyle(.white)
+                }
+                .frame(width: 78, height: 78)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 6) {
+                        Text(kind.title).font(.system(.headline, design: kind.font)).foregroundStyle(.white)
+                        if selected { Image(systemName: "checkmark.circle.fill").foregroundStyle(kind.accent) }
+                        Spacer(minLength: 0)
+                        if locked {
+                            Label("Lv.\(kind.unlockLevel) 解锁", systemImage: "lock.fill").font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 8).padding(.vertical, 4)
+                                .background(Capsule().fill(Color.black.opacity(0.45))).foregroundStyle(.white)
+                        }
+                    }
+                    Text(kind.blurb).font(.caption2).foregroundStyle(.white.opacity(0.65)).lineLimit(2)
+                    HStack(spacing: 8) {
+                        miniCard("电量", "98%")
+                        miniCard("压差", "11")
+                        Capsule().fill(LinearGradient(colors: [kind.accent, kind.accent2], startPoint: .leading, endPoint: .trailing))
+                            .frame(width: 44, height: 26)
+                            .overlay(Text("骑行").font(.caption2.weight(.bold)).foregroundStyle(.white))
+                    }
                 }
             }
-            .disabled(locked)
+            .padding(14)
         }
+        .frame(height: 150)
+        .clipShape(RoundedRectangle(cornerRadius: kind.radius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: kind.radius, style: .continuous)
+            .stroke(selected ? kind.accent : Color.white.opacity(0.12), lineWidth: selected ? 2 : 1))
+        .opacity(locked ? 0.75 : 1)
+        .contentShape(Rectangle())
+    }
+
+    private func miniCard(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.system(size: 9)).foregroundStyle(.white.opacity(0.55))
+            Text(value).font(.system(size: 14, weight: .semibold, design: kind.font)).foregroundStyle(.white)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: min(kind.radius, 10), style: .continuous).fill(kind.card))
+        .overlay(RoundedRectangle(cornerRadius: min(kind.radius, 10), style: .continuous).stroke(kind.stroke, lineWidth: kind.strokeWidth))
     }
 }

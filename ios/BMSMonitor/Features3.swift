@@ -23,16 +23,90 @@ enum Pref {
 enum ThemeKind: String, CaseIterable, Identifiable {
     case blue, green, orange, purple, gold
     var id: String { rawValue }
-    var title: String { ["默认蓝", "霓虹绿", "落日橙", "赛博紫", "黑金"][index] }
+    var title: String { ["深夜蓝", "极光", "落日", "赛博朋克", "黑金"][index] }
+    var blurb: String {
+        ["深蓝底、圆润数字，最耐看", "墨绿夜空里两道极光，数字带一点青", "暖紫底、右上角半个夕阳，圆角更大",
+         "霓虹网格、品红配青色、等宽数字、直角卡片", "纯黑底细斜纹、金色描边、衬线数字"][index]
+    }
     var unlockLevel: Int { [1, 2, 3, 4, 5][index] }
     var index: Int { ThemeKind.allCases.firstIndex(of: self)! }
+    private static func c(_ r: Double, _ g: Double, _ b: Double) -> Color { Color(red: r, green: g, blue: b) }
     var accent: Color {
         switch self {
-        case .blue: return Color(red: 0.33, green: 0.57, blue: 1.0)
-        case .green: return Color(red: 0.20, green: 0.95, blue: 0.60)
-        case .orange: return Color(red: 1.0, green: 0.55, blue: 0.25)
-        case .purple: return Color(red: 0.72, green: 0.45, blue: 1.0)
-        case .gold: return Color(red: 0.95, green: 0.78, blue: 0.35)
+        case .blue: return Self.c(0.33, 0.57, 1.0)
+        case .green: return Self.c(0.25, 0.98, 0.62)
+        case .orange: return Self.c(1.0, 0.56, 0.24)
+        case .purple: return Self.c(1.0, 0.24, 0.80)
+        case .gold: return Self.c(0.95, 0.78, 0.38)
+        }
+    }
+    /// 第二个颜色：渐变、按钮、表盘起点用
+    var accent2: Color {
+        switch self {
+        case .blue: return Self.c(0.20, 0.32, 0.85)
+        case .green: return Self.c(0.10, 0.78, 0.95)
+        case .orange: return Self.c(0.95, 0.28, 0.48)
+        case .purple: return Self.c(0.10, 0.92, 1.0)
+        case .gold: return Self.c(0.62, 0.44, 0.16)
+        }
+    }
+    var bgTop: Color {
+        switch self {
+        case .blue: return Self.c(0.07, 0.09, 0.16)
+        case .green: return Self.c(0.02, 0.10, 0.11)
+        case .orange: return Self.c(0.19, 0.07, 0.12)
+        case .purple: return Self.c(0.09, 0.02, 0.15)
+        case .gold: return Self.c(0.07, 0.06, 0.045)
+        }
+    }
+    var bgBottom: Color {
+        switch self {
+        case .blue: return Self.c(0.02, 0.03, 0.06)
+        case .green: return Self.c(0.005, 0.025, 0.035)
+        case .orange: return Self.c(0.04, 0.02, 0.05)
+        case .purple: return Self.c(0.015, 0.0, 0.04)
+        case .gold: return Self.c(0.0, 0.0, 0.0)
+        }
+    }
+    var card: Color {
+        switch self {
+        case .blue: return Color.white.opacity(0.06)
+        case .green: return Self.c(0.55, 1.0, 0.85).opacity(0.06)
+        case .orange: return Self.c(1.0, 0.80, 0.70).opacity(0.075)
+        case .purple: return Self.c(0.45, 0.15, 0.85).opacity(0.14)
+        case .gold: return Self.c(1.0, 0.88, 0.60).opacity(0.045)
+        }
+    }
+    var stroke: Color {
+        switch self {
+        case .blue: return Color.white.opacity(0.09)
+        case .green: return accent.opacity(0.16)
+        case .orange: return accent.opacity(0.18)
+        case .purple: return accent2.opacity(0.45)
+        case .gold: return accent.opacity(0.38)
+        }
+    }
+    var strokeWidth: CGFloat { self == .gold ? 0.8 : 1 }
+    /// 卡片外发光（只有赛博用）
+    var glow: Color { self == .purple ? accent2.opacity(0.18) : .clear }
+    var solid: Color {
+        switch self {
+        case .blue: return Self.c(0.12, 0.14, 0.22)
+        case .green: return Self.c(0.05, 0.16, 0.16)
+        case .orange: return Self.c(0.24, 0.11, 0.14)
+        case .purple: return Self.c(0.16, 0.05, 0.26)
+        case .gold: return Self.c(0.10, 0.09, 0.07)
+        }
+    }
+    var radius: CGFloat { [22, 22, 28, 6, 14][index] }
+    var font: Font.Design { [.rounded, .rounded, .rounded, .monospaced, .serif][index] }
+    /// 车速表盘的渐变：从主题色走到黄、红（快了就变红，这个意思不变）
+    var gauge: [Color] {
+        let warn = Color(red: 1.0, green: 0.75, blue: 0.30), bad = Color(red: 1.0, green: 0.40, blue: 0.38)
+        switch self {
+        case .blue: return [accent, Color(red: 0.36, green: 0.87, blue: 0.55), warn, bad]
+        case .gold: return [accent2, accent, Color(red: 1.0, green: 0.92, blue: 0.70), bad]
+        default: return [accent2, accent, warn, bad]
         }
     }
     static var current: ThemeKind { ThemeKind(rawValue: UserDefaults.standard.string(forKey: "theme") ?? "blue") ?? .blue }

@@ -80,7 +80,7 @@ struct NavBanner: View {
                 .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Theme.accent))
             VStack(alignment: .leading, spacing: 2) {
                 Text(nav.nextDist >= 0 ? nav.dist(nav.nextDist) : "--")
-                    .font(.system(.title2, design: .rounded).weight(.bold)).monospacedDigit()
+                    .font(.system(.title2, design: Theme.font).weight(.bold)).monospacedDigit()
                 Text(nav.nextText).font(.subheadline).lineLimit(2)
                 Text(remaining).font(.caption).foregroundStyle(Theme.sub)
             }
@@ -192,7 +192,7 @@ struct NavSearchView: View {
             VStack(spacing: 14) {
                 RouteMap(route: r)
                     .frame(height: 300)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
                 GlassCard(title: nav.destination?.name ?? "目的地", icon: "flag.checkered") {
                     HStack {
                         StatTile(label: "距离", value: String(format: "%.1f", km), unit: "km")

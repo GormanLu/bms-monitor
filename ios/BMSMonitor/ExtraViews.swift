@@ -198,7 +198,7 @@ struct HealthView: View {
                         }
                         Spacer()
                         VStack(alignment: .trailing, spacing: 0) {
-                            Text("\(r.pLowMv)").font(.system(.headline, design: .rounded)).foregroundStyle(r.pLowMv >= 30 ? Theme.bad : r.pLowMv >= 15 ? Theme.warn : Theme.good)
+                            Text("\(r.pLowMv)").font(.system(.headline, design: Theme.font)).foregroundStyle(r.pLowMv >= 30 ? Theme.bad : r.pLowMv >= 15 ? Theme.warn : Theme.good)
                             Text("P 低 mV").font(.system(size: 9)).foregroundStyle(Theme.sub)
                         }
                     }
@@ -231,7 +231,7 @@ struct BadgesView: View {
                                 Circle().fill(LinearGradient(colors: [Theme.accent, Theme.good], startPoint: .topLeading, endPoint: .bottomTrailing))
                                 VStack(spacing: 0) {
                                     Text("Lv").font(.caption2.weight(.bold))
-                                    Text("\(lv.index)").font(.system(size: 26, weight: .heavy, design: .rounded))
+                                    Text("\(lv.index)").font(.system(size: 26, weight: .heavy, design: Theme.font))
                                 }
                                 .foregroundStyle(.white)
                             }
@@ -403,7 +403,7 @@ struct ReportCard: View {
                 Text(title + " · 骑行报告").font(.headline)
             }
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(String(format: "%.1f", s.km)).font(.system(size: 52, weight: .bold, design: .rounded)).monospacedDigit()
+                Text(String(format: "%.1f", s.km)).font(.system(size: 52, weight: .bold, design: Theme.font)).monospacedDigit()
                 Text("公里").foregroundStyle(Theme.sub)
                 Spacer()
                 if prev.km > 0 {
@@ -437,7 +437,7 @@ struct ReportCard: View {
         }
         .padding(18)
         .background(RoundedRectangle(cornerRadius: 24, style: .continuous)
-            .fill(LinearGradient(colors: [Color(red: 0.12, green: 0.18, blue: 0.38), Color(red: 0.06, green: 0.08, blue: 0.16)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .fill(LinearGradient(colors: [Theme.solid, Theme.bgBottom], startPoint: .topLeading, endPoint: .bottomTrailing)))
         .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(Theme.stroke))
         .foregroundStyle(.white)
     }

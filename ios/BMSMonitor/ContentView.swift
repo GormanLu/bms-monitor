@@ -34,7 +34,7 @@ struct BadgeToast: View {
                 Spacer(minLength: 0)
             }
             .padding(14)
-            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color(red: 0.12, green: 0.14, blue: 0.22)))
+            .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Theme.solid))
             .padding(.horizontal, 16)
             .transition(.move(edge: .top).combined(with: .opacity))
             .task {
@@ -129,7 +129,15 @@ struct SettingsView: View {
                 Section(header: Text("Apple Watch"), footer: Text("骑行时，手表的智能叠放里会显示车速、电量、续航和导航（转一下表冠或在表盘上往上滑）。想抬手就看到：在手表的 设置 → 智能叠放 里打开实时活动的\"自动启动\"。转弯和超速提醒是发一条通知，手机锁屏时会转到手表上震一下手腕。")) {
                     Toggle("转弯和超速时震手表", isOn: $watchTap)
                 }
-                Section(header: Text("仪表主题"), footer: Text("在徽章页升级解锁更多颜色。")) { ThemePicker() }
+                Section(header: Text("仪表主题")) {
+                    NavigationLink { ThemePage() } label: {
+                        HStack {
+                            Text("主题")
+                            Spacer()
+                            Text(ThemeKind.current.title).foregroundStyle(Theme.accent)
+                        }
+                    }
+                }
                 Section(header: Text("省钱账本怎么算")) {
                     Stepper(String(format: "油价 %.2f 元/升", fuel), value: $fuel, in: 4...12, step: 0.1)
                     Stepper(String(format: "开车百公里 %.1f 升", l100), value: $l100, in: 3...15, step: 0.5)
@@ -173,6 +181,8 @@ struct SettingsView: View {
                 }
                 Section { Text(Uploader.appVersion).foregroundStyle(.secondary) }
             }
+            .scrollContentBackground(.hidden)
+            .background(AppBackground())
             .navigationTitle("设置")
             .task { lines = await LogStore.shared.recent() }
         }

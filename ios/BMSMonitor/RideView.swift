@@ -22,10 +22,10 @@ struct RideView: View {
                         NavBanner()
                         ZStack(alignment: .bottomLeading) {
                             RouteMap(route: nav.route, follow: true)
-                                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
                             HStack(alignment: .firstTextBaseline, spacing: 2) {
                                 Text(ride.freshSpeed.map { String(format: "%.0f", $0) } ?? "--")
-                                    .font(.system(size: 40, weight: .bold, design: .rounded)).monospacedDigit()
+                                    .font(.system(size: 40, weight: .bold, design: Theme.font)).monospacedDigit()
                                 Text("km/h").font(.caption).foregroundStyle(Theme.sub)
                             }
                             .padding(.horizontal, 14).padding(.vertical, 8)
@@ -66,7 +66,7 @@ struct RideView: View {
         return HStack(spacing: 12) {
             ZStack {
                 Ring(progress: (soc ?? 0) / 100, color: Theme.soc(soc ?? 100), lineWidth: 6)
-                Text(soc.map { String(format: "%.0f", $0) } ?? "--").font(.system(.subheadline, design: .rounded).weight(.bold))
+                Text(soc.map { String(format: "%.0f", $0) } ?? "--").font(.system(.subheadline, design: Theme.font).weight(.bold))
             }
             .frame(width: 46, height: 46)
             VStack(alignment: .leading, spacing: 2) {
@@ -92,7 +92,7 @@ struct RideView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(ride.on ? "已骑" : "未开始").font(.caption2).foregroundStyle(Theme.sub)
                 Text((ride.startedAt.map { Date().timeIntervalSince($0) } ?? 0).hms)
-                    .font(.system(.title3, design: .rounded).weight(.semibold)).monospacedDigit()
+                    .font(.system(.title3, design: Theme.font).weight(.semibold)).monospacedDigit()
             }
         }
     }
@@ -121,7 +121,7 @@ struct RideView: View {
             HStack {
                 Text(p < 0 ? "回充" : "功率").font(.caption).foregroundStyle(Theme.sub)
                 Spacer()
-                Text(String(format: "%.0f W", abs(p))).font(.system(.title2, design: .rounded).weight(.bold)).monospacedDigit()
+                Text(String(format: "%.0f W", abs(p))).font(.system(.title2, design: Theme.font).weight(.bold)).monospacedDigit()
                     .foregroundStyle(p < 0 ? Theme.good : p > 1500 ? Theme.bad : .white)
                 Text(String(format: "%.0f A", abs(m.current ?? 0))).font(.caption).foregroundStyle(Theme.sub).monospacedDigit()
             }

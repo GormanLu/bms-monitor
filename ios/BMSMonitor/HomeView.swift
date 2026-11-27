@@ -66,7 +66,7 @@ struct HomeView: View {
                 Image(systemName: "chevron.right").font(.caption).foregroundStyle(Theme.faint)
             }
             .padding(16)
-            .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.card))
+            .background(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous).fill(Theme.card))
         }
         .buttonStyle(.plain)
     }
@@ -109,7 +109,7 @@ struct HomeView: View {
                     Ring(progress: (soc ?? 0) / 100, color: Theme.soc(soc ?? 100), lineWidth: 14)
                     VStack(spacing: 0) {
                         Text(soc.map { String(format: "%.0f", $0) } ?? "--")
-                            .font(.system(size: 44, weight: .bold, design: .rounded)).monospacedDigit()
+                            .font(.system(size: 44, weight: .bold, design: Theme.font)).monospacedDigit()
                         Text("%").font(.caption).foregroundStyle(Theme.sub)
                     }
                 }
@@ -257,8 +257,8 @@ struct HomeView: View {
             }
             .foregroundStyle(.white)
             .padding(16)
-            .background(RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(LinearGradient(colors: [Theme.accent, Color(red: 0.2, green: 0.32, blue: 0.85)], startPoint: .topLeading, endPoint: .bottomTrailing)))
+            .background(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                .fill(LinearGradient(colors: [Theme.accent, Theme.accent2], startPoint: .topLeading, endPoint: .bottomTrailing)))
         }
     }
 
@@ -291,7 +291,7 @@ struct BatteryLifeView: View {
                 VStack(spacing: 14) {
                     GlassCard(title: "循环次数", icon: "arrow.triangle.2.circlepath") {
                         HStack(alignment: .firstTextBaseline) {
-                            Text(String(format: "%.1f", stats.cycles)).font(.system(size: 46, weight: .bold, design: .rounded)).monospacedDigit()
+                            Text(String(format: "%.1f", stats.cycles)).font(.system(size: 46, weight: .bold, design: Theme.font)).monospacedDigit()
                             Text("次（等效满充满放）").foregroundStyle(Theme.sub)
                         }
                         HStack {

@@ -22,7 +22,7 @@ struct TripRow: View {
             Spacer()
             if let w = trip.whPerKm {
                 VStack(alignment: .trailing, spacing: 0) {
-                    Text(String(format: "%.0f", w)).font(.system(.headline, design: .rounded)).monospacedDigit()
+                    Text(String(format: "%.0f", w)).font(.system(.headline, design: Theme.font)).monospacedDigit()
                     Text("Wh/km").font(.system(size: 9)).foregroundStyle(Theme.sub)
                 }
             }
@@ -47,7 +47,7 @@ struct TripDetailView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             TrackMap(track: tr, gcj: gcj)
                                 .frame(height: 280)
-                                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                                .clipShape(RoundedRectangle(cornerRadius: Theme.radius, style: .continuous))
                             HStack(spacing: 10) {
                                 ForEach([("慢", 5.0), ("15", 15.0), ("28", 28.0), ("40+", 40.0)], id: \.0) { item in
                                     HStack(spacing: 4) {
